@@ -44,7 +44,7 @@ if [ "$YES" -eq 0 ]; then
 fi
 
 step "Pacotes do sistema"
-PKGS=(python3-venv python3-pip libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 libxcb-image0
+PKGS=(adb scrcpy policykit-1 python3-venv python3-pip libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 libxcb-image0
       libxcb-render-util0 libxcb-xinerama0 libxcb-shape0 libegl1 libnotify-bin)
 MISSING=()
 for p in "${PKGS[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || MISSING+=("$p"); done
@@ -111,6 +111,15 @@ if command -v ufw >/dev/null && grep -q "^ENABLED=yes" /etc/ufw/ufw.conf 2>/dev/
   for net in $NETS; do
     if sudo ufw allow from "$net" to any port 7099:7118 proto tcp comment "Arasaka Uplink" >/dev/null; then ok "porta liberada para a rede $net"; else warn "nao consegui liberar no firewall: abra o Uplink e use LIBERAR NO FIREWALL"; fi
   done
+fi
+
+# senha do Linux para mexer no celular: acao propria do Uplink no polkit (pede a senha do seu usuario)
+step "Senha do celular (polkit)"
+if sudo install -m755 "$DIR/arasaka_uplink/polkit/arasaka-uplink-auth" /usr/libexec/arasaka-uplink-auth && \
+   sudo install -m644 "$DIR/arasaka_uplink/polkit/studio.arasaka.uplink.policy" /usr/share/polkit-1/actions/studio.arasaka.uplink.policy; then
+  ok "o Uplink pede a sua senha antes de mexer no celular"
+else
+  warn "nao consegui registrar a acao do polkit: o Uplink vai pedir a senha de administrador"
 fi
 
 printf '\n%s%s ■ INSTALACAO CONCLUIDA%s\n' "$R" "$B" "$N"

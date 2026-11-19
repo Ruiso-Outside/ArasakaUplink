@@ -27,6 +27,8 @@ jobs:
           test -s "$RUNNER_TEMP/tela.png"
       - name: Servidor (codigo, aprovacao, envio, download)
         run: timeout 120 python tests/test_server.py
+      - name: Celular (adb, QR de pareamento, senha)
+        run: timeout 60 python tests/test_phone.py
       - name: Controle remoto numa tela virtual (Xvfb), inclusive mouse e teclado
         run: |
           sudo apt-get install -y -qq xvfb >/dev/null

@@ -351,8 +351,9 @@ class MainWindow(QMainWindow):
         sl.addSpacing(10)
         self.nav = QButtonGroup(self)
         self.stack = QStackedWidget()
-        self.pages = {"connect": ConnectPage(self), "recv": ReceivedPage(self), "send": SendPage(self)}
-        for i, (key, text) in enumerate([("connect", "CONECTAR"), ("recv", "RECEBIDOS"), ("send", "ENVIAR")]):
+        from .phone_ui import PhonePage
+        self.pages = {"connect": ConnectPage(self), "recv": ReceivedPage(self), "send": SendPage(self), "phone": PhonePage(self)}
+        for i, (key, text) in enumerate([("connect", "CONECTAR"), ("recv", "RECEBIDOS"), ("send", "ENVIAR"), ("phone", "CELULAR")]):
             b = QPushButton(f"{i + 1:02d}   {text}")
             b.setObjectName("nav")
             b.setCheckable(True)

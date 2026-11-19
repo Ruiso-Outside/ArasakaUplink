@@ -40,6 +40,41 @@ com o nome do aparelho e o botão **ENCERRAR**. Na aba Conectar dá para desliga
 Funciona na sessão **Xorg (X11)**. No Wayland, o sistema não deixa um app capturar a tela e mexer no mouse sem um portal
 com permissão; se a sua sessão for Wayland, escolha "Zorin OS on Xorg" (ou "Ubuntu on Xorg") na tela de login.
 
+## Usar o celular pelo PC (aba Celular, Android)
+
+Para o dia em que a tela do celular quebrar: o PC espelha e controla o celular, mexe nos arquivos e **resgata tudo**
+(fotos, vídeos, documentos, downloads, gravações e a mídia do WhatsApp e do Telegram), sem precisar tocar no celular.
+Usa o **ADB** (a depuração do próprio Android) e o **scrcpy** (espelhamento de tela), que o instalador coloca.
+
+**Consentimento no celular, uma vez (com a tela funcionando):**
+1. Configurações > Sobre o telefone > toque 7 vezes em **Número da versão** (liga as Opções do desenvolvedor).
+2. Opções do desenvolvedor > ligue **Depuração USB** e **Depuração sem fio**.
+3. **Pelo Wi-Fi:** Depuração sem fio > **Parear dispositivo com QR code** > leia o QR que aparece no Uplink.
+4. **Pelo cabo (o mais garantido):** ligue no USB e marque **"Sempre permitir neste computador"**.
+
+Depois disso o celular não pergunta mais nada: o Uplink reconecta sozinho quando ele aparece na rede (ou no cabo).
+
+**No PC, sempre a sua senha do Linux:** a aba Celular começa trancada. **Destravar com a senha** abre a janela de senha do
+próprio sistema (polkit; a senha nunca passa pelo Uplink) e vale 15 minutos sem uso, ou até **Trancar agora**.
+
+| Na aba Celular | O que faz |
+|---|---|
+| **Espelhar e controlar** | Abre a tela do celular numa janela: mouse e teclado do PC mexem nele (opção de manter a tela do celular apagada) |
+| Acordar, Início, Voltar, Recentes, Deslizar, Apagar tela | As teclas e gestos do celular, mesmo sem tela |
+| **Digitar / PIN** | Digita no celular (com um PIN, aperta Enter: desbloqueia com a tela quebrada) |
+| **Arquivos** | Navega no armazenamento do celular, copia para o PC e manda arquivos do PC para lá |
+| **Resgatar tudo** | Copia as pastas importantes para uma pasta nova no PC |
+
+**Para não ficar sem acesso:**
+- A **autorização pelo cabo não expira**: é ela que garante o acesso com a tela quebrada. Faça uma vez, com o cabo.
+- A **Depuração sem fio** desliga quando o celular sai do Wi-Fi e, em alguns aparelhos, quando reinicia. Pelo Wi-Fi, o
+  acesso dura enquanto ela estiver ligada.
+- Com a tela travada por senha/PIN, os arquivos só aparecem depois de desbloquear (use **Digitar / PIN**).
+
+**Transparência:** o Android mostra uma notificação fixa enquanto a depuração estiver conectada, e tudo se desfaz no celular
+em Opções do desenvolvedor > **Revogar autorizações de depuração USB**. A senha protege o caminho pelo Uplink; o `adb`
+continua disponível no terminal da sua conta, como em qualquer PC com ADB.
+
 ## Segurança
 
 | Proteção | Como |
