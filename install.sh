@@ -103,9 +103,14 @@ gtk-update-icon-cache -q -t "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
 ok "atalho no menu: Arasaka Uplink"
 
 
-# firewall ligado (ufw): libera a porta do Uplink so para a rede local
-if command -v ufw >/dev/null && sudo -n true 2>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-  sudo ufw allow from 192.168.0.0/16 to any port 7099:7118 proto tcp comment "Arasaka Uplink" >/dev/null && ok "firewall: porta liberada para a rede local"
+# firewall ligado (ufw): libera a porta do Uplink so para as redes locais deste PC (pede a senha)
+if command -v ufw >/dev/null && grep -q "^ENABLED=yes" /etc/ufw/ufw.conf 2>/dev/null && [ "$(systemctl is-active ufw 2>/dev/null)" = active ]; then
+  step "Firewall"
+  NETS=$(ip -4 -o addr show scope global | grep -oE 'inet [0-9./]+' | awk '{print $2}' | python3 -c "import ipaddress,sys; print(' '.join(sorted({str(ipaddress.ip_interface(l.strip()).network) for l in sys.stdin if l.strip() and ipaddress.ip_interface(l.strip()).network.is_private})))")
+  [ -n "$NETS" ] || NETS="192.168.0.0/16"
+  for net in $NETS; do
+    if sudo ufw allow from "$net" to any port 7099:7118 proto tcp comment "Arasaka Uplink" >/dev/null; then ok "porta liberada para a rede $net"; else warn "nao consegui liberar no firewall: abra o Uplink e use LIBERAR NO FIREWALL"; fi
+  done
 fi
 
 printf '\n%s%s ■ INSTALACAO CONCLUIDA%s\n' "$R" "$B" "$N"

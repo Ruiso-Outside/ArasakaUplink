@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget,
                                QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QStackedWidget,
@@ -108,11 +108,56 @@ class ConnectPage(Page):
         info.addWidget(self.remote_lbl)
         row.addLayout(info, 1)
         self.lay.addLayout(row)
-        self.lay.addWidget(label("Funciona só na sua rede (HTTP local): use em casa, não em Wi-Fi público. Se não conectar, confira o firewall (porta "
-                                 f"{self.win.up.port}).", "dim", wrap=True))
+        self.fw = CutFrame(cut=10)
+        self.fw.set_border(QColor(150, 110, 20))
+        fl = QHBoxLayout(self.fw)
+        fl.setContentsMargins(16, 10, 16, 10)
+        self.fw_lbl = label("", "red", wrap=True)
+        fl.addWidget(self.fw_lbl, 1)
+        self.fw_btn = button("LIBERAR NO FIREWALL", "primary", self.open_firewall)
+        fl.addWidget(self.fw_btn)
+        fl.addWidget(button("JÁ LIBEREI", None, self.firewall_done))
+        self.lay.insertWidget(1, self.fw)      # logo abaixo do titulo: e o motivo mais comum de o celular nao conectar
+        self.lay.addWidget(label("Funciona só na sua rede (HTTP local): use em casa, não em Wi-Fi público.", "dim", wrap=True))
         self.lay.addStretch()
 
+    def refresh_firewall(self):
+        on = core.firewall_active() and not self.win.fw_opened
+        self.fw.setVisible(on)
+        if on:
+            nets = ", ".join(core.local_networks())
+            self.fw_lbl.setText(f"O firewall do sistema (ufw) está ligado e bloqueia o celular. Libere a porta {self.win.up.port} só para a "
+                                f"sua rede ({nets}). Pede a senha de administrador.")
+
+    def firewall_done(self):
+        self.win.fw_opened = True
+        try:
+            core.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            (core.CONFIG_DIR / "firewall-liberado").write_text("ok\n")
+        except OSError:
+            pass
+        self.refresh_firewall()
+
+    def open_firewall(self):
+        import shutil
+        import subprocess
+        if not shutil.which("pkexec"):
+            return self.win.alert("Firewall", "Rode no terminal:\n\n" + "\n".join("sudo " + " ".join(c) for c in core.firewall_command(self.win.up.port)))
+        self.fw_btn.setEnabled(False)
+        ok = True
+        for cmd in core.firewall_command(self.win.up.port):
+            r = subprocess.run(["pkexec", *cmd], capture_output=True, text=True)
+            ok = ok and r.returncode == 0
+        self.fw_btn.setEnabled(True)
+        if ok:
+            self.firewall_done()
+            self.win.toast("Porta liberada no firewall para a rede de casa")
+        else:
+            self.win.alert("Firewall", "Não foi liberado (senha cancelada?). Dá para rodar no terminal:\n\n"
+                           + "\n".join("sudo " + " ".join(c) for c in core.firewall_command(self.win.up.port)))
+
     def refresh(self, *_):
+        self.refresh_firewall()
         ips = core.lan_ips()
         if self.ip.count() != len(ips):
             self.ip.blockSignals(True)
@@ -278,6 +323,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         self.resize(1100, 760)
+        self.fw_opened = (core.CONFIG_DIR / "firewall-liberado").exists()
         self.bridge = Bridge()
         self.up = core.Uplink(on_device=self.bridge.device.emit, on_file=self.bridge.file.emit, on_text=self.bridge.text.emit)
         self.up.on_remote_request = self.bridge.remote_req.emit

@@ -17,6 +17,7 @@ import os
 import re
 import secrets
 import socket
+import subprocess
 import threading
 import time
 import uuid
@@ -27,7 +28,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 APP_ID = "arasaka-uplink"
 APP_NAME = "ARASAKA UPLINK"
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 HOME = Path.home()
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / APP_ID
@@ -66,6 +67,36 @@ def lan_ips() -> list[str]:
     except OSError:
         pass
     return ips or ["127.0.0.1"]
+
+
+def local_networks() -> list[str]:
+    """Redes locais das placas deste PC (ex.: 192.168.1.0/24), para liberar no firewall so a rede de casa."""
+    nets = []
+    try:
+        out = subprocess.run(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True, timeout=5).stdout
+        for m in re.finditer(r"inet (\d+\.\d+\.\d+\.\d+/\d+)", out):
+            net = ipaddress.ip_interface(m.group(1)).network
+            if net.is_private and str(net) not in nets:
+                nets.append(str(net))
+    except Exception:
+        pass
+    return nets or ["192.168.0.0/16"]
+
+
+def firewall_active() -> bool:
+    """ufw ligado? (da para saber sem senha: o servico e o arquivo de configuracao sao legiveis)"""
+    try:
+        enabled = "ENABLED=yes" in Path("/etc/ufw/ufw.conf").read_text()
+    except OSError:
+        return False
+    r = subprocess.run(["systemctl", "is-active", "ufw"], capture_output=True, text=True)
+    return enabled and r.stdout.strip() == "active"
+
+
+def firewall_command(port: int = 7099) -> list[list[str]]:
+    """Comandos do ufw que liberam as portas do Uplink so para as redes locais."""
+    return [["ufw", "allow", "from", net, "to", "any", "port", f"{port}:{port + 19}", "proto", "tcp", "comment", "Arasaka Uplink"]
+            for net in local_networks()]
 
 
 def is_local(ip: str) -> bool:

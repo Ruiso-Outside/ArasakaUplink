@@ -52,8 +52,17 @@ com permissão; se a sua sessão for Wayland, escolha "Zorin OS on Xorg" (ou "Ub
 **Limite:** a página é **HTTP**. Isso vale também para o controle remoto: a imagem da tela e o que você digita passam sem criptografia pela rede de casa. Os navegadores só liberam criptografia em páginas HTTPS, e na rede de casa não há
 um certificado válido sem instalar algo no celular. Por isso, use em casa, não em Wi-Fi público.
 
-Se o celular não conectar: os dois precisam estar na mesma rede, e um firewall ligado no PC precisa liberar a porta
-(o instalador libera no `ufw` para redes `192.168.x`, se ele estiver ativo).
+## Se o celular não abrir a página
+
+1. **Firewall do PC (o mais comum):** com o `ufw` ligado, a aba Conectar mostra um aviso no topo. Clique em
+   **LIBERAR NO FIREWALL** (pede a senha) ou rode no terminal, trocando pela sua rede:
+   `sudo ufw allow from 192.168.1.0/24 to any port 7099:7118 proto tcp comment "Arasaka Uplink"`.
+   O instalador também faz isso (pedindo a senha) quando o firewall está ligado.
+2. **Mesma rede:** o PC no cabo e o celular no Wi-Fi funcionam juntos se estiverem no mesmo roteador. Não funciona se o
+   celular estiver na **rede de convidados** ou num roteador/repetidor com outra faixa de endereços (o começo do IP do
+   celular, em Configurações > Wi-Fi > detalhes, deve ser o mesmo do endereço que aparece no Uplink, ex.: `192.168.1.`).
+3. **Isolamento do Wi-Fi:** alguns roteadores têm "isolamento de cliente/AP" ligado, que impede o Wi-Fi de falar com
+   os aparelhos do cabo. Desligue nas configurações do roteador.
 
 ## Instalar
 
