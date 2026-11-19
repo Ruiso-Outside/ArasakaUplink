@@ -28,7 +28,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 APP_ID = "arasaka-uplink"
 APP_NAME = "ARASAKA UPLINK"
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 HOME = Path.home()
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / APP_ID
@@ -387,7 +387,7 @@ def qr_svg(text: str) -> str:
     """QR code em SVG (precisa do pacote qrcode)."""
     import qrcode
     import qrcode.image.svg
-    img = qrcode.make(text, image_factory=qrcode.image.svg.SvgPathFillImage, box_size=10, border=2)
+    img = qrcode.make(text, image_factory=qrcode.image.svg.SvgPathFillImage, box_size=10, border=4)   # margem padrao: leitores exigentes
     from io import BytesIO
     buf = BytesIO()
     img.save(buf)

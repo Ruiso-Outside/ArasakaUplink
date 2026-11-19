@@ -53,14 +53,37 @@ for bad in [("192.168.1.20", "123456"), ("192.168.1.20:41231", "12345"), ("x:1",
         raise AssertionError(f"aceitou {bad}")
     except ValueError:
         pass
-with mock.patch.object(P, "adb", lambda *a, **k: "Successfully paired to 192.168.1.20:41231 [guid=adb-XYZ]"):
-    assert P.pair_code("192.168.1.20:41231", "482913") == "192.168.1.20:41231"
+with mock.patch.object(P, "adb", lambda *a, **k: "Successfully paired to 192.168.1.20:41231 [guid=adb-XYZ]"), \
+        mock.patch.object(P, "after_pair", lambda addr: f"pareado {addr}"):
+    assert P.pair_code("192.168.1.20:41231", "482913") == "pareado 192.168.1.20:41231"
 with mock.patch.object(P, "adb", lambda *a, **k: "Failed: Wrong password or connection was dropped."):
     try:
         P.pair_code("192.168.1.20:41231", "000000")
         raise AssertionError("aceitou código errado")
     except RuntimeError as e:
         assert "Wrong password" in str(e)
+
+# depois de parear, conecta pela porta anunciada (outra que a do pareamento)
+log = []
+fake_adb = lambda *a, **k: (log.append(a), "connected to 192.168.1.80:39171" if a[0] == "connect" else "")[1]
+with mock.patch.object(P, "adb", fake_adb), mock.patch.object(P, "mdns", lambda: [("adb-x", "_adb-tls-connect._tcp", "192.168.1.80:39171"),
+                                                                            ("adb-y", "_adb-tls-connect._tcp", "192.168.1.55:41000")]):
+    assert P.after_pair("192.168.1.80:42177") == "pareado e conectado (192.168.1.80:39171)"
+    assert ("connect", "192.168.1.80:39171") in log and not any(x[0] == "connect" and "192.168.1.55" in x[1] for x in log), "só o celular pareado"
+with mock.patch.object(P, "adb", lambda *a, **k: ""), mock.patch.object(P, "mdns", lambda: []), mock.patch.object(P.time, "sleep", lambda s: None):
+    assert "CONECTAR POR IP" in P.after_pair("192.168.1.80:42177")
+for bad in ("192.168.1.80", "abc:12"):
+    try:
+        P.connect_addr(bad)
+        raise AssertionError(bad)
+    except ValueError:
+        pass
+with mock.patch.object(P, "adb", lambda *a, **k: "failed to connect to '192.168.1.80:39999': Connection refused"):
+    try:
+        P.connect_addr("192.168.1.80:39999")
+        raise AssertionError("conectou")
+    except RuntimeError:
+        pass
 
 # senha: sem confirmar nao abre; confirmada vale o prazo; trancar fecha
 g = auth.Gate(minutes=15)

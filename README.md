@@ -54,7 +54,7 @@ Usa o **ADB** (a depuração do próprio Android) e o **scrcpy** (espelhamento d
    **Parear dispositivo com código de pareamento** e, no Uplink, **Parear com código** (endereço e 6 números).
 4. **Pelo cabo (o mais garantido):** ligue no USB e marque **"Sempre permitir neste computador"**.
 
-Depois disso o celular não pergunta mais nada: o Uplink reconecta sozinho quando ele aparece na rede (ou no cabo).
+Depois disso o celular não pergunta mais nada: o Uplink reconecta sozinho quando ele aparece na rede (ou no cabo). Ele mesmo procura o celular na rede (mDNS, pelo serviço de descoberta do sistema), porque o `adb` do Ubuntu vem sem essa busca. Se não achar, use **Conectar por IP** com o "Endereço IP e porta" da tela Depuração sem fio.
 
 **No PC, sempre a sua senha do Linux:** a aba Celular começa trancada. **Destravar com a senha** abre a janela de senha do
 próprio sistema (polkit; a senha nunca passa pelo Uplink) e vale 15 minutos sem uso, ou até **Trancar agora**.

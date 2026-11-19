@@ -161,13 +161,14 @@ class PhonePage(Page):
         left.addWidget(button("PAREAR PELO QR CODE", "primary", self.pair))
         r = QHBoxLayout()
         r.addWidget(button("COM CÓDIGO", None, self.pair_code))
+        r.addWidget(button("CONECTAR POR IP", None, self.connect_ip))
         r.addWidget(button("PROCURAR", None, lambda: self.scan(True)))
         left.addLayout(r)
         self.pair_box = CutFrame(cut=10)
         pl = QVBoxLayout(self.pair_box)
         pl.setContentsMargins(14, 12, 14, 12)
         self.qr = QSvgWidget()
-        self.qr.setFixedSize(220, 220)
+        self.qr.setFixedSize(300, 300)
         self.qr.setStyleSheet("background:#fff;")
         pl.addWidget(self.qr, 0, Qt.AlignCenter)
         self.pair_lbl = label("", "muted", wrap=True)
@@ -317,7 +318,7 @@ class PhonePage(Page):
         if isinstance(r, Exception):
             if tag != "keep":
                 self._line(f"!! {r}")
-            if tag == "pair":
+            if tag in ("pair", "connect"):
                 self.pair_lbl.setText(f"Não pareou: {r}")
             return
         if tag in ("scan", "keep"):
@@ -333,9 +334,10 @@ class PhonePage(Page):
                 bat = f"bateria {r['battery']}%{' (carregando)' if r['charging'] else ''}" if r.get("battery") is not None else ""
                 tela = "tela acesa" if r.get("awake") else "tela apagada" if r.get("awake") is False else ""
                 self.p_info.setText(" · ".join(x for x in (f"Android {r.get('android')}", bat, tela, "Wi-Fi" if p.transport == "wifi" else "cabo USB") if x))
-        elif tag == "pair":
+        elif tag in ("pair", "connect"):
             self.pair_box.hide()
-            self.win.toast("Celular pareado. Deixe a Depuração sem fio ligada para manter a conexão.")
+            self._line(f"■ {r}")
+            self.win.toast(str(r))
             self.scan(True)
         elif tag in ("rescue", "msg"):
             self._line(str(r))
@@ -374,6 +376,16 @@ class PhonePage(Page):
             return
         self._line(f"> pareando com {addr.strip()}...")
         self.runner.run("pair", phone.pair_code, addr.strip(), code.strip())
+
+    def connect_ip(self):
+        if not self.gate_ok():
+            return
+        addr, ok = QInputDialog.getText(self, "Conectar por IP",
+                                        "No celular: Opções do desenvolvedor > toque no nome Depuração sem fio.\n"
+                                        "Digite o \"Endereço IP e porta\" que aparece lá (ex.: 192.168.1.80:39171):")
+        if ok and addr.strip():
+            self._line(f"> conectando em {addr.strip()}...")
+            self.runner.run("connect", phone.connect_addr, addr.strip())
 
     def cancel_pair(self):
         self.pairing_stop = True
