@@ -46,6 +46,23 @@ with mock.patch.object(P, "adb", lambda *a, **k: calls.append(a) or ""):
     P.type_text("X", "a b;c$1")
 assert calls[-1] == ("shell", "input", "text", r"a%sb\;c\$1"), calls[-1]
 
+# Xiaomi/POCO: toques bloqueados sem "Depuracao USB (Configuracoes de seguranca)"
+props = {"ro.miui.ui.version.name": "V816", "persist.security.adbinput": ""}
+with mock.patch.object(P, "adb", lambda *a, **k: props.get(a[-1], "")):
+    assert P.input_blocked("X")
+    props["persist.security.adbinput"] = "1"
+    assert not P.input_blocked("X")
+    props["ro.miui.ui.version.name"] = ""; props["persist.security.adbinput"] = ""
+    assert not P.input_blocked("X")          # outras marcas: nao bloqueia
+blocked = "java.lang.SecurityException: Injecting input events requires the caller (or the source of the instrumentation, if any) to have the INJECT_EVENTS permission."
+with mock.patch.object(P, "adb", lambda *a, **k: blocked):
+    try:
+        P.key("X", "inicio"); raise AssertionError("devia falhar")
+    except RuntimeError as e:
+        assert "Configurações de segurança" in str(e)
+assert "Configurações de segurança" in P.mirror_problem("INFO: ...\n" + blocked)
+assert P.mirror_problem("INFO: Renderer: opengl\nINFO: Texture: 1080x2400") is None
+
 # pareamento pelo codigo de 6 digitos
 for bad in [("192.168.1.20", "123456"), ("192.168.1.20:41231", "12345"), ("x:1", "123456")]:
     try:

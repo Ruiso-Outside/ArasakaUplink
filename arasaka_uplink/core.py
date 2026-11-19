@@ -28,7 +28,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 APP_ID = "arasaka-uplink"
 APP_NAME = "ARASAKA UPLINK"
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 
 HOME = Path.home()
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / APP_ID

@@ -158,12 +158,15 @@ class PhonePage(Page):
         self.list.setMinimumHeight(170)
         self.list.currentRowChanged.connect(lambda *_: self.show_phone())
         left.addWidget(self.list)
-        left.addWidget(button("PAREAR PELO QR CODE", "primary", self.pair))
-        r = QHBoxLayout()
-        r.addWidget(button("COM CÓDIGO", None, self.pair_code))
-        r.addWidget(button("CONECTAR POR IP", None, self.connect_ip))
-        r.addWidget(button("PROCURAR", None, lambda: self.scan(True)))
-        left.addLayout(r)
+        g = QGridLayout()
+        g.setSpacing(6)
+        g.addWidget(button("PAREAR PELO QR CODE", "primary", self.pair,
+                           "No celular: Depuração sem fio > Parear dispositivo com QR code"), 0, 0, 1, 2)
+        g.addWidget(button("COM CÓDIGO", None, self.pair_code, "Depuração sem fio > Parear dispositivo com código de pareamento"), 1, 0)
+        g.addWidget(button("POR IP", None, self.connect_ip, "Conectar com o \"Endereço IP e porta\" da tela Depuração sem fio"), 1, 1)
+        g.addWidget(button("PROCURAR NA REDE", None, lambda: self.scan(True), "Procura celulares já pareados na rede"), 2, 0)
+        g.addWidget(button("COMO PAREAR", None, self.how_to, "Passo a passo da primeira vez"), 2, 1)
+        left.addLayout(g)
         self.pair_box = CutFrame(cut=10)
         pl = QVBoxLayout(self.pair_box)
         pl.setContentsMargins(14, 12, 14, 12)
@@ -176,16 +179,11 @@ class PhonePage(Page):
         pl.addWidget(button("CANCELAR", None, self.cancel_pair))
         self.pair_box.hide()
         left.addWidget(self.pair_box)
-        left.addWidget(label("PRIMEIRA VEZ (no celular, com a tela funcionando):\n"
-                             "1. Configurações > Sobre o telefone > toque 7 vezes em Número da versão (liga as Opções do desenvolvedor).\n"
-                             "2. Opções do desenvolvedor > ligue Depuração USB e Depuração sem fio.\n"
-                             "3. Wi-Fi: toque no NOME Depuração sem fio > Parear dispositivo com QR code > leia o QR daqui com ESSE leitor "
-                             "(a câmera comum acha que é uma rede Wi-Fi e não funciona). Ou: Parear dispositivo com código de pareamento > PAREAR COM CÓDIGO.\n"
-                             "4. Cabo (o mais garantido para tela quebrada): ligue no USB e marque \"Sempre permitir neste computador\".",
-                             "dim", wrap=True))
+        left.addWidget(label("Primeira vez? Faça com a tela do celular funcionando: veja COMO PAREAR.", "dim", wrap=True))
+        left.addStretch()
         lw = QWidget()
         lw.setLayout(left)
-        lw.setMaximumWidth(360)
+        lw.setFixedWidth(340)
         body.addWidget(lw)
 
         right = QVBoxLayout()
@@ -196,8 +194,17 @@ class PhonePage(Page):
         self.p_info = label("", "muted", wrap=True)
         dl.addWidget(self.p_title)
         dl.addWidget(self.p_info)
+        self.block_box = CutFrame(cut=10)
+        self.block_box.set_border(QColor(160, 20, 28))
+        bl = QVBoxLayout(self.block_box)
+        bl.setContentsMargins(14, 10, 14, 10)
+        bl.addWidget(label("■  O CELULAR BLOQUEIA OS TOQUES DO PC", "red", 1.5, bold=True, wrap=True))
+        bl.addWidget(label(phone.XIAOMI_HELP, "muted", wrap=True))
+        self.block_box.hide()
+        dl.addWidget(self.block_box)
         dl.addWidget(button("ESPELHAR E CONTROLAR", "primary", self.mirror))
-        self.screen_off = QCheckBox("apagar a tela do celular enquanto espelha (economiza bateria)")
+        self.screen_off = QCheckBox("apagar a tela do celular ao espelhar")
+        self.screen_off.setToolTip("Economiza bateria; o PC continua vendo e mexendo")
         dl.addWidget(self.screen_off)
         grid = QGridLayout()
         grid.setSpacing(6)
@@ -213,7 +220,8 @@ class PhonePage(Page):
         self.log = QPlainTextEdit()
         self.log.setObjectName("log")
         self.log.setReadOnly(True)
-        self.log.setMaximumHeight(160)
+        self.log.setMinimumHeight(110)
+        self.log.setMaximumHeight(180)
         right.addWidget(self.log)
         body.addLayout(right, 1)
         self.lay.addLayout(body)
@@ -226,6 +234,10 @@ class PhonePage(Page):
         self.tick = QTimer(self)
         self.tick.timeout.connect(self.refresh_lock)
         self.tick.start(1000)
+        self.watch = QTimer(self)
+        self.watch.timeout.connect(self.watch_mirrors)
+        self.watch.start(1500)
+        self.names: dict[str, str] = {}
 
     # ------------------------------------------------ senha
     def gate_ok(self) -> bool:
@@ -283,12 +295,14 @@ class PhonePage(Page):
         self.list.clear()
         for p in self.phones:
             st = {"device": "CONECTADO", "unauthorized": "AUTORIZE NO CELULAR", "offline": "OFFLINE"}.get(p.state, p.state.upper())
-            self.list.addItem(f"{p.name}   ·   {'WI-FI' if p.transport == 'wifi' else 'CABO'}   ·   {st}")
+            it = QListWidgetItem(f"{self.names.get(p.serial, p.name)}\n{'WI-FI' if p.transport == 'wifi' else 'CABO'}  ·  {st}")
+            it.setToolTip(p.serial)
+            self.list.addItem(it)
         known = phone.load_known()
         live = {p.model for p in self.phones}
         for k, v in known.items():
             if v.get("model") not in live:
-                self.list.addItem(f"{v.get('model') or k}   ·   pareado, fora de alcance")
+                self.list.addItem(f"{v.get('model') or k}\npareado, fora de alcance")
         self.list.blockSignals(False)
         idx = next((i for i, p in enumerate(self.phones) if p.serial == cur), 0 if self.phones else -1)
         self.list.setCurrentRow(idx)
@@ -297,11 +311,12 @@ class PhonePage(Page):
     def show_phone(self):
         p = self.current()
         self.detail.setEnabled(self.gate.open and bool(p and p.ready))
+        self.block_box.hide()
         if not p:
             self.p_title.setText("NENHUM CELULAR CONECTADO")
             self.p_info.setText("Pareie pelo QR code ou ligue o cabo USB. Se já pareou, ligue a Depuração sem fio no celular (mesma rede Wi-Fi).")
             return
-        self.p_title.setText(p.name.upper())
+        self.p_title.setText(self.names.get(p.serial, p.name).upper())
         self.p_info.setText(f"{'Wi-Fi' if p.transport == 'wifi' else 'Cabo USB'} · {p.serial}" +
                             ("\nNo celular, aceite \"Permitir depuração\" e marque \"Sempre permitir neste computador\"." if p.state == "unauthorized" else ""))
         if p.ready and self.gate.open:
@@ -330,6 +345,10 @@ class PhonePage(Page):
         elif tag == "info":
             p = self.current()
             if p:
+                if r.get("name") and self.names.get(p.serial) != r["name"]:
+                    self.names[p.serial] = r["name"]
+                    self.list.item(self.list.currentRow()).setText(f"{r['name']}\n{'WI-FI' if p.transport == 'wifi' else 'CABO'}  ·  CONECTADO")
+                self.block_box.setVisible(bool(r.get("input_blocked")))
                 self.p_title.setText((r.get("name") or p.name).upper())
                 bat = f"bateria {r['battery']}%{' (carregando)' if r['charging'] else ''}" if r.get("battery") is not None else ""
                 tela = "tela acesa" if r.get("awake") else "tela apagada" if r.get("awake") is False else ""
@@ -405,10 +424,44 @@ class PhonePage(Page):
             return
         try:
             proc = phone.mirror(p.serial, f"ARASAKA UPLINK · {p.name}", self.screen_off.isChecked())
-            self.mirrors[p.serial] = proc
-            self._line(f"> espelhando {p.name} (feche a janela para parar)")
+            self.mirrors[p.serial] = [proc, False]
+            self._line(f"> espelhando {self.names.get(p.serial, p.name)} (feche a janela para parar)")
         except Exception as e:  # noqa: BLE001
             self.win.alert("Espelhar", str(e))
+
+    def watch_mirrors(self):
+        """Le o registro do scrcpy: avisa se o celular bloquear os toques ou se o espelhamento cair."""
+        for serial, st in list(self.mirrors.items()):
+            proc, told = st
+            try:
+                log = (core.CONFIG_DIR / "scrcpy.log").read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                log = ""
+            why = phone.mirror_problem(log)
+            if why and not told:
+                st[1] = True
+                self._line(f"!! {why}")
+                if "INJECT_EVENTS" in log or "injectInputEvent" in log:
+                    self.block_box.show()
+                    self.win.toast("O celular bloqueou os toques do PC: veja o aviso vermelho")
+            if proc.poll() is not None:
+                del self.mirrors[serial]
+                if proc.returncode not in (0, None) and not st[1]:
+                    tail = [x for x in log.strip().splitlines() if x.strip()][-1:] or ["sem detalhes"]
+                    self._line(f"!! o espelhamento fechou com erro: {tail[0]}")
+                else:
+                    self._line("> espelhamento encerrado")
+
+    def how_to(self):
+        self.win.alert("Como parear (primeira vez)",
+                       "Faça no celular, com a tela funcionando:\n\n"
+                       "1. Configurações > Sobre o telefone > toque 7 vezes em Número da versão (liga as Opções do desenvolvedor).\n\n"
+                       "2. Opções do desenvolvedor > ligue Depuração USB e Depuração sem fio. Xiaomi/Redmi/POCO: ligue também "
+                       "\"Depuração USB (Configurações de segurança)\", senão o PC só vê a tela e não mexe.\n\n"
+                       "3. Pelo Wi-Fi: toque no NOME Depuração sem fio > Parear dispositivo com QR code e leia o QR do Uplink com "
+                       "ESSE leitor (a câmera comum não serve). Ou use Parear dispositivo com código de pareamento > COM CÓDIGO.\n\n"
+                       "4. Pelo cabo (o mais garantido para tela quebrada): ligue no USB e marque \"Sempre permitir neste computador\".\n\n"
+                       "Se o celular não aparecer: PROCURAR NA REDE, ou POR IP com o \"Endereço IP e porta\" da tela Depuração sem fio.")
 
     def key(self, name):
         p = self._need()

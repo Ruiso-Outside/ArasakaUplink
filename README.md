@@ -53,6 +53,8 @@ Usa o **ADB** (a depuração do próprio Android) e o **scrcpy** (espelhamento d
    **esse leitor** (a câmera comum acha que é uma rede Wi-Fi e mostra nome e senha de rede: não serve). Se preferir,
    **Parear dispositivo com código de pareamento** e, no Uplink, **Parear com código** (endereço e 6 números).
 4. **Pelo cabo (o mais garantido):** ligue no USB e marque **"Sempre permitir neste computador"**.
+5. **Xiaomi, Redmi e POCO:** em Opções do desenvolvedor, ligue também **"Depuração USB (Configurações de segurança)"**. Sem ela o
+   PC vê a tela mas não mexe (a Xiaomi pede chip no celular e a conta Mi conectada). O Uplink avisa quando falta.
 
 Depois disso o celular não pergunta mais nada: o Uplink reconecta sozinho quando ele aparece na rede (ou no cabo). Ele mesmo procura o celular na rede (mDNS, pelo serviço de descoberta do sistema), porque o `adb` do Ubuntu vem sem essa busca. Se não achar, use **Conectar por IP** com o "Endereço IP e porta" da tela Depuração sem fio.
 

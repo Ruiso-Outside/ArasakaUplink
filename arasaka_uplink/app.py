@@ -438,6 +438,14 @@ class MainWindow(QMainWindow):
         self.pages["recv"].add_text(dev, text)
         self.toast(f"Texto de {dev.name}")
 
+    def alert(self, title: str, text: str):
+        mb = QMessageBox(self)
+        mb.setWindowTitle(title)
+        mb.setText(text)
+        mb.setMinimumWidth(520)
+        mb.addButton("OK", QMessageBox.AcceptRole)
+        mb.exec()
+
     def toast(self, text: str):
         self.toast_lbl.setText(text)
         spaced(self.toast_lbl, 1)

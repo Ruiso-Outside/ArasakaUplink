@@ -230,10 +230,48 @@ def info(serial: str) -> dict:
     ver = adb("shell", "getprop", "ro.build.version.release", serial=serial, timeout=10).strip()
     brand = adb("shell", "getprop", "ro.product.brand", serial=serial, timeout=10).strip()
     model = adb("shell", "getprop", "ro.product.model", serial=serial, timeout=10).strip()
+    market = adb("shell", "getprop", "ro.product.marketname", serial=serial, timeout=10).strip()
     screen = adb("shell", "dumpsys", "power", serial=serial, timeout=10)
     awake = re.search(r"mWakefulness=(\w+)", screen)
     return {"battery": int(lvl.group(1)) if lvl else None, "charging": bool(charging), "android": ver,
-            "name": f"{brand.capitalize()} {model}".strip(), "awake": (awake.group(1) == "Awake") if awake else None}
+            "name": market or f"{brand.capitalize()} {model}".strip(), "awake": (awake.group(1) == "Awake") if awake else None,
+            "input_blocked": input_blocked(serial)}
+
+
+def is_xiaomi(serial: str) -> bool:
+    """MIUI e HyperOS (Xiaomi, Redmi, POCO)."""
+    return any(adb("shell", "getprop", prop, serial=serial, timeout=10).strip()
+               for prop in ("ro.miui.ui.version.name", "ro.mi.os.version.name"))
+
+
+def input_blocked(serial: str) -> bool:
+    """Na Xiaomi/Redmi/POCO o PC so ve a tela: toques e teclas precisam de
+    'Depuracao USB (Configuracoes de seguranca)' ligada (propriedade persist.security.adbinput=1)."""
+    return is_xiaomi(serial) and adb("shell", "getprop", "persist.security.adbinput", serial=serial, timeout=10).strip() != "1"
+
+
+XIAOMI_HELP = ("Celular Xiaomi/Redmi/POCO: o sistema deixa o PC ver a tela, mas bloqueia toques e teclas. No celular, em "
+               "Opções do desenvolvedor, ligue também \"Depuração USB (Configurações de segurança)\" (fica logo abaixo de "
+               "Depuração USB). A Xiaomi pede um chip no celular e a conta Mi conectada. Depois, desconecte e conecte de novo.")
+
+
+def friendly(err: str) -> str:
+    """Troca os erros do Android por uma explicacao."""
+    if "INJECT_EVENTS" in err or "injectInputEvent" in err:
+        return "o celular bloqueou o toque/tecla vindo do PC. " + XIAOMI_HELP
+    return err
+
+
+def mirror_problem(log: str) -> str | None:
+    """Procura no registro do scrcpy o motivo de nao conseguir mexer ou abrir."""
+    if "INJECT_EVENTS" in log or "injectInputEvent" in log:
+        return friendly("INJECT_EVENTS")
+    for pat, msg in ((r"Could not open video stream|Could not create decoder", "o PC não conseguiu abrir o vídeo do celular"),
+                     (r"device '.*' not found|Device disconnected", "o celular desconectou"),
+                     (r"Server connection failed|Could not connect", "o scrcpy não conseguiu falar com o celular")):
+        if re.search(pat, log):
+            return msg
+    return None
 
 
 KEYS = {"acordar": "KEYCODE_WAKEUP", "apagar": "KEYCODE_SLEEP", "inicio": "KEYCODE_HOME", "voltar": "KEYCODE_BACK",
@@ -242,20 +280,27 @@ KEYS = {"acordar": "KEYCODE_WAKEUP", "apagar": "KEYCODE_SLEEP", "inicio": "KEYCO
 
 
 def key(serial: str, name: str):
-    adb("shell", "input", "keyevent", KEYS[name], serial=serial, timeout=10, check=True)
+    shell_input(serial, "keyevent", KEYS[name])
+
+
+def shell_input(serial: str, *args: str):
+    """`adb shell input ...`, com erro claro quando o celular bloqueia (o input nao muda o codigo de saida em todo Android)."""
+    out = adb("shell", "input", *args, serial=serial, timeout=15)
+    if "Exception" in out or "INJECT_EVENTS" in out:
+        raise RuntimeError(friendly(out.strip().splitlines()[0] if "INJECT_EVENTS" not in out else "INJECT_EVENTS"))
 
 
 def swipe_up(serial: str):
     """Arrasta de baixo para cima (tira a tela de bloqueio do caminho para digitar o PIN)."""
     size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size", serial=serial, timeout=10))
     w, h = (int(size.group(1)), int(size.group(2))) if size else (1080, 2340)
-    adb("shell", "input", "swipe", str(w // 2), str(int(h * 0.85)), str(w // 2), str(int(h * 0.3)), "250", serial=serial, timeout=10, check=True)
+    shell_input(serial, "swipe", str(w // 2), str(int(h * 0.85)), str(w // 2), str(int(h * 0.3)), "250")
 
 
 def type_text(serial: str, text: str):
     """Digita no celular (o `input text` nao aceita espaco literal nem alguns simbolos)."""
     safe = re.sub(r"([\\\"'`$&|;<>(){}\[\]*?~!#])", r"\\\1", text).replace(" ", "%s")
-    adb("shell", "input", "text", safe, serial=serial, timeout=15, check=True)
+    shell_input(serial, "text", safe)
 
 
 # ================================================================ espelhar e controlar
@@ -268,7 +313,10 @@ def mirror(serial: str, title: str, screen_off: bool = False, audio: bool = Fals
     help_text = subprocess.run(["scrcpy", "--help"], capture_output=True, text=True).stdout
     if not audio and "--no-audio" in help_text:
         cmd.append("--no-audio")
-    return subprocess.Popen(cmd, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    log = CONFIG_DIR / "scrcpy.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "w", encoding="utf-8") as f:     # o scrcpy escreve o motivo dos problemas aqui
+        return subprocess.Popen(cmd, start_new_session=True, stdout=f, stderr=subprocess.STDOUT, text=True)
 
 
 # ================================================================ arquivos
