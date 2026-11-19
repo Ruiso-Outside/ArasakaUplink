@@ -63,6 +63,29 @@ with mock.patch.object(P, "adb", lambda *a, **k: blocked):
 assert "Configurações de segurança" in P.mirror_problem("INFO: ...\n" + blocked)
 assert P.mirror_problem("INFO: Renderer: opengl\nINFO: Texture: 1080x2400") is None
 
+# scrcpy antigo (1.25 do Ubuntu) no Android 14: a tela aparece mas o toque quebra
+old_log = """scrcpy 1.25 <https://github.com/Genymobile/scrcpy>
+java.lang.AssertionError: java.lang.reflect.InvocationTargetException
+	at com.genymobile.scrcpy.wrappers.ServiceManager.getInputManager(ServiceManager.java:75)
+Caused by: java.lang.NullPointerException
+	at android.hardware.input.InputManager.getInstance(InputManager.java:271)"""
+assert "1.25" in P.mirror_problem(old_log) and "Central" in P.mirror_problem(old_log)
+
+# espelhar usa o scrcpy oficial baixado, com o mesmo adb do Uplink
+import tempfile, os
+with tempfile.TemporaryDirectory() as td:
+    exe = Path(td) / "scrcpy"; exe.write_text("#!/bin/sh\necho 'scrcpy 5.0.1 <x>'\n"); exe.chmod(0o755)
+    (Path(td) / "scrcpy-server").write_text("x")
+    seen = {}
+    class FakePopen:
+        def __init__(self, cmd, **k): seen["cmd"], seen["env"] = cmd, k["env"]
+    with mock.patch.object(P, "BUNDLED_SCRCPY", exe), mock.patch.object(P, "CONFIG_DIR", Path(td)):
+        assert P.scrcpy_bin() == str(exe) and P.scrcpy_version() == (5, 0)
+        with mock.patch.object(P.subprocess, "Popen", FakePopen), mock.patch.object(P, "scrcpy_version", lambda *a: (5, 0)):
+            P.mirror("SER", "T")
+    assert seen["cmd"][:3] == [str(exe), "-s", "SER"] and "--no-audio" in seen["cmd"], seen["cmd"]
+    assert seen["env"]["SCRCPY_SERVER_PATH"].endswith("scrcpy-server")
+
 # pareamento pelo codigo de 6 digitos
 for bad in [("192.168.1.20", "123456"), ("192.168.1.20:41231", "12345"), ("x:1", "123456")]:
     try:

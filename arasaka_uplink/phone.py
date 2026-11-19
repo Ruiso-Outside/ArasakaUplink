@@ -32,7 +32,33 @@ RESCUE = ["DCIM", "Pictures", "Movies", "Music", "Documents", "Download", "Recor
 
 
 def tools() -> dict[str, str | None]:
-    return {"adb": shutil.which("adb"), "scrcpy": shutil.which("scrcpy")}
+    return {"adb": shutil.which("adb"), "scrcpy": scrcpy_bin()}
+
+
+# scrcpy oficial baixado pelo instalador (o do Ubuntu, 1.25, nao consegue tocar na tela do Android 14)
+BUNDLED_SCRCPY = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share") / "arasaka-uplink" / "scrcpy" / "scrcpy"
+
+
+def scrcpy_bin() -> str | None:
+    if BUNDLED_SCRCPY.is_file() and os.access(BUNDLED_SCRCPY, os.X_OK):
+        return str(BUNDLED_SCRCPY)
+    return shutil.which("scrcpy")
+
+
+def scrcpy_version(path: str | None = None) -> tuple[int, int]:
+    path = path or scrcpy_bin()
+    if not path:
+        return (0, 0)
+    try:
+        out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return (0, 0)
+    m = re.search(r"scrcpy (\d+)\.(\d+)", out)
+    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+
+
+OLD_SCRCPY = ("o scrcpy {v} do Ubuntu é antigo demais para o Android 12 ou mais novo: mostra a tela mas não toca nela. "
+              "Atualize o Uplink pela Arasaka Central (o instalador baixa o scrcpy oficial).")
 
 
 def adb(*args: str, serial: str | None = None, timeout: float = 30, check: bool = False) -> str:
@@ -266,6 +292,9 @@ def mirror_problem(log: str) -> str | None:
     """Procura no registro do scrcpy o motivo de nao conseguir mexer ou abrir."""
     if "INJECT_EVENTS" in log or "injectInputEvent" in log:
         return friendly("INJECT_EVENTS")
+    if "InputManager.getInstance" in log or "getInputManager" in log or "NoSuchMethodException" in log:
+        v = re.search(r"scrcpy (\d+\.\d+)", log)
+        return OLD_SCRCPY.format(v=v.group(1) if v else "")
     for pat, msg in ((r"Could not open video stream|Could not create decoder", "o PC não conseguiu abrir o vídeo do celular"),
                      (r"device '.*' not found|Device disconnected", "o celular desconectou"),
                      (r"Server connection failed|Could not connect", "o scrcpy não conseguiu falar com o celular")):
@@ -305,18 +334,24 @@ def type_text(serial: str, text: str):
 
 # ================================================================ espelhar e controlar
 def mirror(serial: str, title: str, screen_off: bool = False, audio: bool = False) -> subprocess.Popen:
-    if not shutil.which("scrcpy"):
-        raise RuntimeError("o scrcpy não está instalado (sudo apt install scrcpy)")
-    cmd = ["scrcpy", "-s", serial, "--window-title", title, "--stay-awake"]
+    exe = scrcpy_bin()
+    if not exe:
+        raise RuntimeError("o scrcpy não está instalado: reinstale o Uplink pela Arasaka Central")
+    cmd = [exe, "-s", serial, "--window-title", title, "--stay-awake"]
     if screen_off:
         cmd.append("--turn-screen-off")
-    help_text = subprocess.run(["scrcpy", "--help"], capture_output=True, text=True).stdout
-    if not audio and "--no-audio" in help_text:
+    if not audio and scrcpy_version(exe) >= (2, 0):
         cmd.append("--no-audio")
+    env = dict(os.environ)
+    if shutil.which("adb"):
+        env["ADB"] = shutil.which("adb")          # o mesmo adb do Uplink (outro adb derrubaria a conexao Wi-Fi)
+    server = Path(exe).with_name("scrcpy-server")
+    if server.is_file():
+        env["SCRCPY_SERVER_PATH"] = str(server)
     log = CONFIG_DIR / "scrcpy.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "w", encoding="utf-8") as f:     # o scrcpy escreve o motivo dos problemas aqui
-        return subprocess.Popen(cmd, start_new_session=True, stdout=f, stderr=subprocess.STDOUT, text=True)
+        return subprocess.Popen(cmd, start_new_session=True, stdout=f, stderr=subprocess.STDOUT, text=True, env=env)
 
 
 # ================================================================ arquivos

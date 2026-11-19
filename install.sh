@@ -44,7 +44,7 @@ if [ "$YES" -eq 0 ]; then
 fi
 
 step "Pacotes do sistema"
-PKGS=(adb scrcpy policykit-1 python3-venv python3-pip libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 libxcb-image0
+PKGS=(adb scrcpy curl policykit-1 python3-venv python3-pip libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 libxcb-image0
       libxcb-render-util0 libxcb-xinerama0 libxcb-shape0 libegl1 libnotify-bin)
 MISSING=()
 for p in "${PKGS[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || MISSING+=("$p"); done
@@ -61,6 +61,34 @@ mkdir -p "$DATA"
 info "baixando PySide6 (~120 MB na primeira vez)..."
 "$DATA/venv/bin/python" -m pip install -q --upgrade "PySide6-Essentials>=6.5" "qrcode>=7" "mss>=9" "Pillow>=10" "python-xlib>=0.33" "zeroconf>=0.131" || die "falha ao instalar as bibliotecas do app"
 ok "PySide6 $("$DATA/venv/bin/python" -c 'import PySide6; print(PySide6.__version__)')"
+
+step "Espelhamento do celular (scrcpy oficial)"
+# o scrcpy do Ubuntu (1.25) mostra a tela do Android 14 mas nao toca nela: baixa a versao oficial, conferida pelo SHA-256
+SCRCPY_VER=v5.0.1
+SCRCPY_SHA=9f969d30cc574816077edecda65719c1c70b0aee1df1ba5fa00779ac07b8fd6e
+SC="$DATA/scrcpy"
+if [ "$(uname -m)" != x86_64 ]; then
+  warn "scrcpy oficial so para PC x86_64: fica o do sistema"
+elif [ "$(cat "$SC/VERSION" 2>/dev/null)" = "$SCRCPY_VER" ] && [ -x "$SC/scrcpy" ]; then
+  ok "scrcpy $SCRCPY_VER"
+else
+  TMP=$(mktemp -d)
+  URL="https://github.com/Genymobile/scrcpy/releases/download/$SCRCPY_VER/scrcpy-linux-x86_64-$SCRCPY_VER.tar.gz"
+  info "baixando o scrcpy $SCRCPY_VER (~18 MB, github.com/Genymobile/scrcpy)..."
+  if curl -fsSL --retry 2 "$URL" -o "$TMP/scrcpy.tar.gz" && echo "$SCRCPY_SHA  $TMP/scrcpy.tar.gz" | sha256sum -c --quiet - 2>/dev/null; then
+    mkdir -p "$TMP/x" && tar xzf "$TMP/scrcpy.tar.gz" -C "$TMP/x" --no-same-owner
+    EXE=$(find "$TMP/x" -type f -name scrcpy -perm -u+x | head -1)
+    if [ -n "$EXE" ] && [ -f "$(dirname "$EXE")/scrcpy-server" ]; then
+      rm -rf "$SC" && mkdir -p "$SC" && cp -r "$(dirname "$EXE")"/. "$SC"/ && echo "$SCRCPY_VER" > "$SC/VERSION"
+      ok "scrcpy $SCRCPY_VER (toca na tela do Android 14)"
+    else
+      warn "pacote do scrcpy diferente do esperado: fica o do sistema"
+    fi
+  else
+    warn "nao consegui baixar ou conferir o scrcpy: fica o do sistema (no Android 12+ so mostra a tela)"
+  fi
+  rm -rf "$TMP"
+fi
 
 step "Arquivos do app"
 rm -rf "$DATA/app"

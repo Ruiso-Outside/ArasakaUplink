@@ -44,7 +44,8 @@ com permissão; se a sua sessão for Wayland, escolha "Zorin OS on Xorg" (ou "Ub
 
 Para o dia em que a tela do celular quebrar: o PC espelha e controla o celular, mexe nos arquivos e **resgata tudo**
 (fotos, vídeos, documentos, downloads, gravações e a mídia do WhatsApp e do Telegram), sem precisar tocar no celular.
-Usa o **ADB** (a depuração do próprio Android) e o **scrcpy** (espelhamento de tela), que o instalador coloca.
+Usa o **ADB** (a depuração do próprio Android) e o **scrcpy** (espelhamento de tela). O instalador baixa o scrcpy oficial
+(github.com/Genymobile/scrcpy, conferido pelo SHA-256), porque o do Ubuntu (1.25) mostra a tela do Android 12+ mas não toca nela.
 
 **Consentimento no celular, uma vez (com a tela funcionando):**
 1. Configurações > Sobre o telefone > toque 7 vezes em **Número da versão** (liga as Opções do desenvolvedor).

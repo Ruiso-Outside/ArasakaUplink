@@ -273,9 +273,14 @@ class PhonePage(Page):
     def refresh(self):
         t = phone.tools()
         missing = [k for k, v in t.items() if not v]
-        self.tools_box.setVisible(bool(missing))
+        old = t["scrcpy"] and phone.scrcpy_version(t["scrcpy"]) < (2, 0)
+        self.tools_box.setVisible(bool(missing or old))
         if missing:
-            self.tools_lbl.setText(f"Falta instalar: {', '.join(missing)}. Rode no terminal: sudo apt install adb scrcpy (ou reinstale o Uplink pela Central).")
+            self.tools_lbl.setText(f"Falta instalar: {', '.join(missing)}. Reinstale o Uplink pela Arasaka Central.")
+        elif old:
+            v = phone.scrcpy_version(t["scrcpy"])
+            msg = phone.OLD_SCRCPY.format(v=f"{v[0]}.{v[1]}")
+            self.tools_lbl.setText(msg[0].upper() + msg[1:])
         self.refresh_lock()
         self.show_phone()
         self.scan(True)
