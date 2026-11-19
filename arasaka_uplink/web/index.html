@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ARASAKA UPLINK</title>
+<style>
+:root{--red:#e3121f;--bg:#050506;--fg:#ececf0;--mute:#8c8c96;--line:#2a2a31;--card:#0b0b0d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 "Rajdhani","Bahnschrift",system-ui,sans-serif;
+background-image:linear-gradient(rgba(227,18,31,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(227,18,31,.05) 1px,transparent 1px);background-size:40px 40px;min-height:100vh}
+main{max-width:640px;margin:0 auto;padding:18px 16px 40px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.logo{width:40px;height:40px;border:2px solid var(--red);display:grid;place-items:center;color:var(--red);font-weight:700;letter-spacing:.1em}
+h1{margin:0;font-size:20px;letter-spacing:.3em}h1 small{display:block;font-size:11px;color:var(--mute);letter-spacing:.25em}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin:12px 0;
+clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.card h2{margin:0 0 10px;font-size:13px;letter-spacing:.25em;color:var(--mute)}
+.btn{display:block;width:100%;background:var(--red);color:#fff;border:0;padding:14px;font:700 15px "Rajdhani","Bahnschrift",system-ui,sans-serif;letter-spacing:.2em;cursor:pointer;
+clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
+.drop{border:1px dashed #5a1218;padding:22px;text-align:center;color:var(--mute);margin-top:10px}
+.drop.on{border-color:var(--red);color:var(--fg)}
+textarea{width:100%;min-height:90px;background:#050506;border:1px solid var(--line);color:var(--fg);padding:10px;font:15px "Rajdhani","Bahnschrift",system-ui,sans-serif;margin-bottom:10px}
+.item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #16161a}
+.item .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.item .s{color:var(--mute);font-size:13px}
+.item a{color:var(--red);text-decoration:none;font-weight:700;letter-spacing:.1em}
+.bar{height:6px;background:#16161a;margin-top:4px}.bar i{display:block;height:100%;width:0;background:var(--red)}
+.status{font-family:monospace;font-size:13px;letter-spacing:.1em}.status b{color:var(--red)}
+.hidden{display:none}.mute{color:var(--mute);font-size:13px}
+.txt{background:#050506;border:1px solid var(--line);padding:10px;white-space:pre-wrap;word-break:break-word;margin:8px 0}
+</style></head><body><main>
+<header><div class="logo">荒</div><h1>UPLINK<small id="pc">ARASAKA // CONEXÃO LOCAL</small></h1></header>
+
+<div class="card" id="wait">
+  <h2>CONEXÃO</h2>
+  <p class="status" id="st">■ conectando...</p>
+  <p class="mute" id="hint"></p>
+</div>
+
+<div id="app" class="hidden">
+  <div class="card">
+    <h2>ENVIAR PARA O PC</h2>
+    <input type="file" id="files" multiple class="hidden">
+    <button class="btn" id="pick">ESCOLHER FOTOS E ARQUIVOS</button>
+    <div class="drop" id="drop">ou arraste arquivos para cá</div>
+    <div id="ups"></div>
+  </div>
+  <div class="card">
+    <h2>ENVIAR TEXTO / LINK</h2>
+    <textarea id="text" placeholder="Cole um texto ou link para aparecer no PC"></textarea>
+    <button class="btn ghost" id="sendText">ENVIAR TEXTO</button>
+  </div>
+  <div class="card">
+    <h2>DO PC PARA ESTE APARELHO</h2>
+    <div id="down"><p class="mute">Nada compartilhado ainda. No PC, use a aba ENVIAR.</p></div>
+    <div id="texts"></div>
+  </div>
+  <p class="mute">Funciona só na sua rede. A conexão é local (HTTP): use em casa, não em Wi-Fi público.</p>
+</div>
+</main>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const key = decodeURIComponent(location.hash.slice(1));
+let dev = null;
+try { dev = localStorage.getItem("uplink-device"); } catch (e) {}
+if (!dev || dev.length < 16) {
+  const a = new Uint8Array(16); (crypto.getRandomValues ? crypto.getRandomValues(a) : a.forEach((_, i) => a[i] = Math.random() * 256 | 0));
+  dev = Array.from(a, (b) => b.toString(16).padStart(2, "0")).join("");
+  try { localStorage.setItem("uplink-device", dev); } catch (e) {}
+}
+const ua = navigator.userAgent;
+const devName = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? ((ua.match(/Android[^;]*;\s*([^;)]+?)(?:\sBuild|\))/) || [])[1] || "Android") : /Windows/.test(ua) ? "PC Windows" : /Mac/.test(ua) ? "Mac" : "Navegador";
+const H = { "X-Uplink-Key": key, "X-Uplink-Device": dev };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const mb = (n) => n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+
+async function hello() {
+  if (!key) { $("#st").innerHTML = "■ <b>CÓDIGO AUSENTE</b>"; $("#hint").textContent = "Abra esta página pelo QR code do Arasaka Uplink no PC."; return; }
+  try {
+    const r = await fetch("/api/hello", { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ device: dev, name: devName }) });
+    const d = await r.json();
+    if (!r.ok) { $("#st").innerHTML = "■ <b>RECUSADO</b>"; $("#hint").textContent = d.erro || ""; return; }
+    if (d.pc) $("#pc").textContent = "CONECTADO A " + d.pc.toUpperCase();
+    if (d.state === "aprovado") { $("#wait").classList.add("hidden"); $("#app").classList.remove("hidden"); poll(); return; }
+    if (d.state === "recusado") { $("#st").innerHTML = "■ <b>APARELHO RECUSADO NO PC</b>"; return; }
+    $("#st").innerHTML = "■ AGUARDANDO APROVAÇÃO"; $("#hint").textContent = `No PC, aceite "${devName}" na janela do Arasaka Uplink.`;
+    setTimeout(hello, 1500);
+  } catch (e) { $("#st").innerHTML = "■ <b>SEM CONEXÃO COM O PC</b>"; $("#hint").textContent = "O Uplink está aberto no PC? Este aparelho está na mesma rede?"; setTimeout(hello, 3000); }
+}
+
+async function poll() {
+  try {
+    const r = await fetch("/api/state", { headers: H });
+    if (r.status === 403) { $("#app").classList.add("hidden"); $("#wait").classList.remove("hidden"); return hello(); }
+    const d = await r.json();
+    $("#down").innerHTML = d.files.length ? d.files.map((f) => `<div class="item"><span class="n">${esc(f.name)}</span><span class="s">${mb(f.size)}</span><a href="#" data-f="${f.id}" data-n="${esc(f.name)}">BAIXAR</a></div>`).join("")
+      : '<p class="mute">Nada compartilhado ainda. No PC, use a aba ENVIAR.</p>';
+    $("#texts").innerHTML = d.texts.map((t) => `<div class="txt">${esc(t.text)}</div><button class="btn ghost" data-copy="${esc(t.text)}">COPIAR</button>`).join("");
+  } catch (e) {}
+  setTimeout(poll, 3000);
+}
+
+document.addEventListener("click", async (e) => {
+  const a = e.target.closest("[data-f]");
+  if (a) {                                   // baixa com os cabeçalhos (o link puro não leva o código)
+    e.preventDefault();
+    a.textContent = "...";
+    const r = await fetch("/api/file/" + a.dataset.f, { headers: H });
+    if (!r.ok) { a.textContent = "ERRO"; return; }
+    const url = URL.createObjectURL(await r.blob());
+    const l = document.createElement("a"); l.href = url; l.download = a.dataset.n; document.body.appendChild(l); l.click(); l.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    a.textContent = "BAIXAR";
+  }
+  const c = e.target.closest("[data-copy]");
+  if (c) { try { await navigator.clipboard.writeText(c.dataset.copy); c.textContent = "COPIADO"; } catch (err) { c.textContent = "SELECIONE E COPIE"; } }
+});
+
+function upload(file) {
+  const row = document.createElement("div");
+  row.innerHTML = `<div class="item"><span class="n">${esc(file.name)}</span><span class="s">${mb(file.size)}</span></div><div class="bar"><i></i></div>`;
+  $("#ups").prepend(row);
+  return new Promise((ok) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", "/api/upload?name=" + encodeURIComponent(file.name));
+    for (const k in H) x.setRequestHeader(k, H[k]);
+    x.upload.onprogress = (ev) => { if (ev.lengthComputable) row.querySelector("i").style.width = (ev.loaded / ev.total * 100) + "%"; };
+    x.onload = () => { row.querySelector(".s").textContent = x.status === 200 ? "ENVIADO" : "ERRO"; row.querySelector("i").style.width = "100%"; ok(); };
+    x.onerror = () => { row.querySelector(".s").textContent = "FALHOU"; ok(); };
+    x.send(file);
+  });
+}
+async function sendAll(list) { for (const f of list) await upload(f); }
+$("#pick").onclick = () => $("#files").click();
+$("#files").onchange = (e) => { sendAll([...e.target.files]); e.target.value = ""; };
+const drop = $("#drop");
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("on"); };
+drop.ondragleave = () => drop.classList.remove("on");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("on"); sendAll([...e.dataTransfer.files]); };
+$("#sendText").onclick = async () => {
+  const t = $("#text").value.trim(); if (!t) return;
+  const r = await fetch("/api/text", { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ text: t }) });
+  $("#sendText").textContent = r.ok ? "ENVIADO" : "ERRO"; if (r.ok) $("#text").value = "";
+  setTimeout(() => ($("#sendText").textContent = "ENVIAR TEXTO"), 1500);
+};
+hello();
+</script>
+</body></html>

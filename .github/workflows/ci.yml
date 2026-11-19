@@ -1,0 +1,39 @@
+# Testes: rodam a cada push na main e antes de cada Release (o Release não sai se falharem).
+name: Testes
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Sintaxe do Python e dos scripts
+        run: |
+          python -m compileall -q arasaka_uplink
+          for f in *.sh; do bash -n "$f"; done
+      - name: Abre o app sem tela e tira um print
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libxkbcommon0 libfontconfig1 libdbus-1-3 >/dev/null
+          pip install -q "PySide6-Essentials>=6.5" "qrcode>=7"
+          mkdir -p "$RUNNER_TEMP/home"
+          QT_QPA_PLATFORM=offscreen HOME="$RUNNER_TEMP/home" ARASAKA_BLACKWALL_DEMO=1 timeout 120 python -m arasaka_uplink --screenshot="$RUNNER_TEMP/tela.png"
+          test -s "$RUNNER_TEMP/tela.png"
+      - name: Servidor (codigo, aprovacao, envio, download)
+        run: timeout 120 python tests/test_server.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tela
+          path: ${{ runner.temp }}/tela.png
+      - name: Visual igual ao ArasakaKit
+        run: |
+          for f in fx.py kit.py; do
+            curl -fsSL "https://raw.githubusercontent.com/Ruiso-Outside/ArasakaKit/main/arasaka_kit/$f" -o "$RUNNER_TEMP/$f" || { echo "::warning::não consegui baixar $f do ArasakaKit"; continue; }
+            cmp -s "$RUNNER_TEMP/$f" "arasaka_uplink/$f" || echo "::warning::arasaka_uplink/$f está diferente do ArasakaKit: rode ArasakaKit/sync.sh"
+          done
