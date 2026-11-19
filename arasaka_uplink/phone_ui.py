@@ -158,8 +158,9 @@ class PhonePage(Page):
         self.list.setMinimumHeight(170)
         self.list.currentRowChanged.connect(lambda *_: self.show_phone())
         left.addWidget(self.list)
+        left.addWidget(button("PAREAR PELO QR CODE", "primary", self.pair))
         r = QHBoxLayout()
-        r.addWidget(button("PAREAR PELO QR CODE", None, self.pair))
+        r.addWidget(button("COM CÓDIGO", None, self.pair_code))
         r.addWidget(button("PROCURAR", None, lambda: self.scan(True)))
         left.addLayout(r)
         self.pair_box = CutFrame(cut=10)
@@ -177,7 +178,8 @@ class PhonePage(Page):
         left.addWidget(label("PRIMEIRA VEZ (no celular, com a tela funcionando):\n"
                              "1. Configurações > Sobre o telefone > toque 7 vezes em Número da versão (liga as Opções do desenvolvedor).\n"
                              "2. Opções do desenvolvedor > ligue Depuração USB e Depuração sem fio.\n"
-                             "3. Wi-Fi: Depuração sem fio > Parear dispositivo com QR code > leia o QR daqui.\n"
+                             "3. Wi-Fi: toque no NOME Depuração sem fio > Parear dispositivo com QR code > leia o QR daqui com ESSE leitor "
+                             "(a câmera comum acha que é uma rede Wi-Fi e não funciona). Ou: Parear dispositivo com código de pareamento > PAREAR COM CÓDIGO.\n"
                              "4. Cabo (o mais garantido para tela quebrada): ligue no USB e marque \"Sempre permitir neste computador\".",
                              "dim", wrap=True))
         lw = QWidget()
@@ -351,11 +353,27 @@ class PhonePage(Page):
         except ImportError:
             self.win.alert("QR code", "Falta o pacote qrcode: reinstale o Uplink.")
             return
-        self.pair_lbl.setText("No celular: Opções do desenvolvedor > Depuração sem fio > Parear dispositivo com QR code. "
+        self.pair_lbl.setText("Leia com o leitor de DENTRO da Depuração sem fio, não com a câmera: Opções do desenvolvedor > toque no nome "
+                              "Depuração sem fio > Parear dispositivo com QR code. (A câmera comum mostra uma rede Wi-Fi com senha: ignore.) "
                               "Celular e PC na mesma rede. Esperando...")
         self.pair_box.show()
         self.pairing_stop = False
         self.runner.run("pair", phone.wait_pairing, name, pw, 180, lambda: self.pairing_stop)
+
+    def pair_code(self):
+        """Parear com o codigo de 6 digitos (Depuracao sem fio > Parear dispositivo com codigo de pareamento)."""
+        if not self.gate_ok():
+            return
+        addr, ok = QInputDialog.getText(self, "Parear com código",
+                                        "No celular: Depuração sem fio > Parear dispositivo com código de pareamento.\n"
+                                        "Digite o endereço que aparece lá (IP e porta, ex.: 192.168.1.20:41231):")
+        if not ok or not addr.strip():
+            return
+        code, ok = QInputDialog.getText(self, "Parear com código", "Código de pareamento (6 dígitos):")
+        if not ok or not code.strip():
+            return
+        self._line(f"> pareando com {addr.strip()}...")
+        self.runner.run("pair", phone.pair_code, addr.strip(), code.strip())
 
     def cancel_pair(self):
         self.pairing_stop = True

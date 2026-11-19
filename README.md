@@ -49,7 +49,9 @@ Usa o **ADB** (a depuração do próprio Android) e o **scrcpy** (espelhamento d
 **Consentimento no celular, uma vez (com a tela funcionando):**
 1. Configurações > Sobre o telefone > toque 7 vezes em **Número da versão** (liga as Opções do desenvolvedor).
 2. Opções do desenvolvedor > ligue **Depuração USB** e **Depuração sem fio**.
-3. **Pelo Wi-Fi:** Depuração sem fio > **Parear dispositivo com QR code** > leia o QR que aparece no Uplink.
+3. **Pelo Wi-Fi:** toque no **nome** "Depuração sem fio" > **Parear dispositivo com QR code** e leia o QR do Uplink com
+   **esse leitor** (a câmera comum acha que é uma rede Wi-Fi e mostra nome e senha de rede: não serve). Se preferir,
+   **Parear dispositivo com código de pareamento** e, no Uplink, **Parear com código** (endereço e 6 números).
 4. **Pelo cabo (o mais garantido):** ligue no USB e marque **"Sempre permitir neste computador"**.
 
 Depois disso o celular não pergunta mais nada: o Uplink reconecta sozinho quando ele aparece na rede (ou no cabo).

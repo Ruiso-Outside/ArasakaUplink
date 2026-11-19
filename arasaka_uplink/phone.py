@@ -119,6 +119,18 @@ def wait_pairing(name: str, pw: str, timeout: float = 180, should_stop=lambda: F
     raise TimeoutError("o celular não leu o QR code a tempo")
 
 
+def pair_code(addr: str, code: str) -> str:
+    """Pareamento pelo codigo de 6 digitos que o celular mostra (alternativa ao QR)."""
+    if not re.fullmatch(r"[\d.]+:\d{2,5}", addr):
+        raise ValueError("endereço inválido: use o IP e a porta que o celular mostra, ex.: 192.168.1.20:41231")
+    if not re.fullmatch(r"\d{6}", code):
+        raise ValueError("o código tem 6 números")
+    out = adb("pair", addr, code, timeout=30)
+    if "Successfully paired" not in out:
+        raise RuntimeError(out.strip().splitlines()[-1] if out.strip() else "falha no pareamento")
+    return addr
+
+
 def connect_known() -> list[str]:
     """Conecta nos celulares pareados que estiverem anunciando a depuracao sem fio na rede."""
     connected = {p.serial for p in devices() if p.ready}

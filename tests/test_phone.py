@@ -46,6 +46,22 @@ with mock.patch.object(P, "adb", lambda *a, **k: calls.append(a) or ""):
     P.type_text("X", "a b;c$1")
 assert calls[-1] == ("shell", "input", "text", r"a%sb\;c\$1"), calls[-1]
 
+# pareamento pelo codigo de 6 digitos
+for bad in [("192.168.1.20", "123456"), ("192.168.1.20:41231", "12345"), ("x:1", "123456")]:
+    try:
+        P.pair_code(*bad)
+        raise AssertionError(f"aceitou {bad}")
+    except ValueError:
+        pass
+with mock.patch.object(P, "adb", lambda *a, **k: "Successfully paired to 192.168.1.20:41231 [guid=adb-XYZ]"):
+    assert P.pair_code("192.168.1.20:41231", "482913") == "192.168.1.20:41231"
+with mock.patch.object(P, "adb", lambda *a, **k: "Failed: Wrong password or connection was dropped."):
+    try:
+        P.pair_code("192.168.1.20:41231", "000000")
+        raise AssertionError("aceitou código errado")
+    except RuntimeError as e:
+        assert "Wrong password" in str(e)
+
 # senha: sem confirmar nao abre; confirmada vale o prazo; trancar fecha
 g = auth.Gate(minutes=15)
 with mock.patch.object(auth, "verify", return_value=(False, "senha cancelada")):
