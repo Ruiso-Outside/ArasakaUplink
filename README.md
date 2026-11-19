@@ -15,6 +15,31 @@ Os arquivos recebidos vão para `Downloads/Uplink` (dá para trocar a pasta). Na
 repetidos ganham `(1)`, `(2)`... Os arquivos que você compartilha não são copiados: o celular baixa direto do
 lugar onde eles estão, enquanto o Uplink estiver aberto.
 
+## Usar os apps do PC pelo celular (controle remoto)
+
+Na página do celular, aba **Apps**: aparecem todos os apps Arasaka e os módulos da Arasaka Central instalados no PC.
+Toque num deles: ele abre no PC (ou vem para a frente, se já estiver aberto) e a janela aparece ao vivo no celular.
+
+| No celular | No PC |
+|---|---|
+| Tocar | Clique |
+| Segurar | Botão direito |
+| Arrastar com um dedo | Arrastar (selecionar, mover) |
+| Dois dedos para cima/baixo | Rolar |
+| **TECLADO** | Digita no app (acentos vão pela área de transferência) |
+| ENTER, ⌫, ESC, TAB, setas, CTRL+C/V/Z/A/S, DEL, F5 | As mesmas teclas |
+| **JANELAS** / **TELA INTEIRA** | Troca a janela vista ou mostra a tela toda |
+| **QUALIDADE** | Baixa, normal ou alta (rede mais lenta: baixa) |
+
+Gire o celular para ver maior. A imagem vem a até 10 quadros por segundo, e só os quadros que mudaram são enviados.
+
+**Permissão própria:** a primeira vez que um aparelho pede para ver e controlar, o PC pergunta (**Permitir**,
+**Só desta vez** ou **Recusar**). Enquanto alguém estiver vendo, aparece uma **barra vermelha no topo da tela do PC**
+com o nome do aparelho e o botão **ENCERRAR**. Na aba Conectar dá para desligar o controle remoto de vez.
+
+Funciona na sessão **Xorg (X11)**. No Wayland, o sistema não deixa um app capturar a tela e mexer no mouse sem um portal
+com permissão; se a sua sessão for Wayland, escolha "Zorin OS on Xorg" (ou "Ubuntu on Xorg") na tela de login.
+
 ## Segurança
 
 | Proteção | Como |
@@ -24,7 +49,7 @@ lugar onde eles estão, enquanto o Uplink estiver aberto.
 | **Aprovação** | Cada aparelho novo precisa ser aceito no PC. Os aceitos ficam lembrados (dá para esquecer na aba Conectar) |
 | **Só enquanto aberto** | O servidor existe só com o app aberto, e não registra acessos nem IPs |
 
-**Limite:** a página é **HTTP**. Os navegadores só liberam criptografia em páginas HTTPS, e na rede de casa não há
+**Limite:** a página é **HTTP**. Isso vale também para o controle remoto: a imagem da tela e o que você digita passam sem criptografia pela rede de casa. Os navegadores só liberam criptografia em páginas HTTPS, e na rede de casa não há
 um certificado válido sem instalar algo no celular. Por isso, use em casa, não em Wi-Fi público.
 
 Se o celular não conectar: os dois precisam estar na mesma rede, e um firewall ligado no PC precisa liberar a porta

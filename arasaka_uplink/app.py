@@ -30,6 +30,35 @@ class Bridge(QObject):
     file = Signal(object, object)
     text = Signal(object, str)
     progress = Signal(object, str, int, int)
+    remote_req = Signal(object)
+    stream = Signal()
+    paste = Signal(str)
+
+
+class WatchBar(QWidget):
+    """Aviso no topo da tela enquanto um aparelho ve/controla o PC."""
+
+    def __init__(self, on_stop):
+        super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.X11BypassWindowManagerHint)
+        self.setStyleSheet("background:#e3121f; color:#ffffff;")
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(16, 6, 8, 6)
+        self.lbl = label("", px=2, bold=True)
+        self.lbl.setStyleSheet("color:#ffffff;")
+        lay.addWidget(self.lbl)
+        b = QPushButton("ENCERRAR")
+        b.setStyleSheet("background:#000; color:#fff; border:none; padding:6px 14px; font-weight:bold; letter-spacing:2px;")
+        b.setCursor(Qt.PointingHandCursor)
+        b.clicked.connect(on_stop)
+        lay.addWidget(b)
+
+    def show_for(self, names: list[str]):
+        self.lbl.setText(f"■  UPLINK · {', '.join(names)} está vendo e controlando esta tela")
+        self.adjustSize()
+        g = QGuiApplication.primaryScreen().geometry()
+        self.move(g.x() + (g.width() - self.width()) // 2, g.y())
+        self.show()
+        self.raise_()
 
 
 class ConnectPage(Page):
@@ -68,6 +97,15 @@ class ConnectPage(Page):
         self.devs.setMinimumHeight(160)
         info.addWidget(self.devs, 1)
         info.addWidget(button("ESQUECER APARELHO", None, self.forget))
+        info.addSpacing(10)
+        info.addWidget(label("CONTROLE REMOTO", "muted", 2, 11, True))
+        rr = QHBoxLayout()
+        self.remote_btn = button("", None, self.toggle_remote)
+        rr.addWidget(self.remote_btn)
+        rr.addStretch()
+        info.addLayout(rr)
+        self.remote_lbl = label("", "muted", wrap=True)
+        info.addWidget(self.remote_lbl)
         row.addLayout(info, 1)
         self.lay.addLayout(row)
         self.lay.addWidget(label("Funciona só na sua rede (HTTP local): use em casa, não em Wi-Fi público. Se não conectar, confira o firewall (porta "
@@ -90,6 +128,7 @@ class ConnectPage(Page):
         except ImportError:
             self.qr.hide()
             self.noqr.setText("Falta o pacote qrcode: use COPIAR LINK e mande o link para o celular.")
+        self.refresh_remote()
         self.devs.clear()
         for d in sorted(self.win.up.devices.values(), key=lambda d: -d.seen):
             it = QListWidgetItem(f"{d.name}   ·   {d.state.upper()}   ·   {d.ip}")
@@ -100,6 +139,23 @@ class ConnectPage(Page):
                 it = QListWidgetItem(f"{name}   ·   LEMBRADO (desconectado)")
                 it.setData(Qt.UserRole, did)
                 self.devs.addItem(it)
+
+    def refresh_remote(self):
+        from . import remote as R
+        ok, why = R.supported()
+        hub = self.win.up.remote
+        self.remote_btn.setText("DESLIGAR O CONTROLE REMOTO" if hub.enabled else "LIGAR O CONTROLE REMOTO")
+        self.remote_btn.setEnabled(ok)
+        names = hub.watching()
+        self.remote_lbl.setText(why if not ok else ("Desligado: os aparelhos só trocam arquivos e textos." if not hub.enabled else
+                                (f"Vendo agora: {', '.join(names)}" if names else "Ligado: aparelhos com permissão podem abrir os apps e usar a tela pelo celular.")))
+
+    def toggle_remote(self):
+        hub = self.win.up.remote
+        hub.enabled = not hub.enabled
+        if not hub.enabled:
+            self.win.stop_remote()
+        self.refresh_remote()
 
     def forget(self):
         it = self.devs.currentItem()
@@ -224,7 +280,14 @@ class MainWindow(QMainWindow):
         self.resize(1100, 760)
         self.bridge = Bridge()
         self.up = core.Uplink(on_device=self.bridge.device.emit, on_file=self.bridge.file.emit, on_text=self.bridge.text.emit)
+        self.up.on_remote_request = self.bridge.remote_req.emit
+        self.up.on_stream = self.bridge.stream.emit
+        self.up.on_paste = self.bridge.paste.emit
         self.up.start()
+        self.watchbar = WatchBar(self.stop_remote)
+        self.bridge.remote_req.connect(self.ask_remote)
+        self.bridge.stream.connect(self.update_watch)
+        self.bridge.paste.connect(self.paste_text)
         self.bridge.device.connect(self.ask_device)
         self.bridge.file.connect(self.got_file)
         self.bridge.text.connect(self.got_text)
@@ -287,6 +350,39 @@ class MainWindow(QMainWindow):
         self.up.decide(dev.id, mb.clickedButton() is yes)
         self.pages["connect"].refresh()
 
+    def ask_remote(self, dev):
+        self.raise_()
+        self.activateWindow()
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Controle remoto")
+        mb.setText(f"\"{dev.name}\" quer VER e CONTROLAR a tela deste PC.")
+        mb.setInformativeText("Ele vai poder abrir os apps Arasaka, clicar e digitar como se estivesse aqui. Enquanto isso, aparece um aviso "
+                              "vermelho no topo da tela, com o botão ENCERRAR. Aceite só se for um aparelho seu.")
+        yes = mb.addButton("PERMITIR", QMessageBox.AcceptRole)
+        yes.setProperty("kind", "danger")
+        once = mb.addButton("SÓ DESTA VEZ", QMessageBox.ActionRole)
+        mb.addButton("RECUSAR", QMessageBox.RejectRole)
+        mb.exec()
+        c = mb.clickedButton()
+        self.up.remote.set_perm(dev.id, c in (yes, once), remember=c is not once)   # "so desta vez" nao fica salvo
+
+    def update_watch(self):
+        names = self.up.remote.watching()
+        if names:
+            self.watchbar.show_for(names)
+        else:
+            self.watchbar.hide()
+        self.pages["connect"].refresh_remote()
+
+    def stop_remote(self):
+        self.up.remote.end_device(None)
+        self.watchbar.hide()
+        self.toast("Controle remoto encerrado")
+
+    def paste_text(self, text: str):
+        QGuiApplication.clipboard().setText(text)
+        QTimer.singleShot(150, lambda: self.up.remote.x.key("ctrl+v"))
+
     def got_file(self, dev, path):
         self.pages["recv"].add_file(dev, path)
         self.toast(f"Recebido de {dev.name}: {path.name}")
@@ -305,6 +401,9 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(3500, self.toast_lbl.hide)
 
     def closeEvent(self, e):
+        self.watchbar.hide()
+        if self.up._remote:
+            self.up.remote.end_device(None)
         self.up.stop()
         e.accept()
 

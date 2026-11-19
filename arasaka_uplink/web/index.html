@@ -26,6 +26,29 @@ textarea{width:100%;min-height:90px;background:#050506;border:1px solid var(--li
 .status{font-family:monospace;font-size:13px;letter-spacing:.1em}.status b{color:var(--red)}
 .hidden{display:none}.mute{color:var(--mute);font-size:13px}
 .txt{background:#050506;border:1px solid var(--line);padding:10px;white-space:pre-wrap;word-break:break-word;margin:8px 0}
+
+.tabs{display:flex;gap:6px;margin:4px 0 6px}
+.tabs button{flex:1;background:transparent;border:1px solid var(--line);color:var(--mute);padding:10px 4px;font:700 13px "Rajdhani",system-ui,sans-serif;letter-spacing:.2em}
+.tabs button.on{color:#fff;border-color:var(--red);background:rgba(227,18,31,.15)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.app{background:#0b0b0d;border:1px solid var(--line);padding:12px 6px;text-align:center;color:var(--fg);font:600 13px "Rajdhani",system-ui,sans-serif;cursor:pointer}
+.app img{width:44px;height:44px;display:block;margin:0 auto 6px;object-fit:contain}
+.app .k{display:block;color:var(--mute);font-size:10px;letter-spacing:.2em}
+.app.busy{opacity:.5}
+#viewer{position:fixed;inset:0;background:#000;z-index:10;display:flex;flex-direction:column}
+#viewer.hidden{display:none}
+#vtop{display:flex;gap:6px;padding:6px;background:#0b0b0d;border-bottom:1px solid #2a0a0d;overflow-x:auto}
+#vtop button,#keys button{background:#141418;border:1px solid var(--line);color:var(--fg);padding:8px 10px;font:700 12px "Rajdhani",system-ui,sans-serif;letter-spacing:.12em;white-space:nowrap}
+#vtop button.red{background:var(--red);border-color:var(--red)}
+#stage{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;touch-action:none}
+#screen{max-width:100%;max-height:100%;user-select:none;-webkit-user-drag:none;touch-action:none}
+#vmsg{position:absolute;color:var(--mute);font-family:monospace;letter-spacing:.1em;text-align:center;padding:20px}
+#keys{display:flex;gap:5px;padding:6px;background:#0b0b0d;border-top:1px solid #2a0a0d;overflow-x:auto}
+#typebar{display:flex;gap:6px;padding:6px;background:#0b0b0d}
+#typebar input{flex:1;background:#050506;border:1px solid var(--line);color:var(--fg);padding:10px;font:15px "Rajdhani",system-ui,sans-serif}
+#wins{position:absolute;inset:0;background:rgba(5,5,6,.96);overflow:auto;padding:14px;z-index:2}
+#wins .item{cursor:pointer}
+#typebar.hidden,#wins.hidden{display:none}
 </style></head><body><main>
 <header><div class="logo">荒</div><h1>UPLINK<small id="pc">ARASAKA // CONEXÃO LOCAL</small></h1></header>
 
@@ -36,6 +59,19 @@ textarea{width:100%;min-height:90px;background:#050506;border:1px solid var(--li
 </div>
 
 <div id="app" class="hidden">
+  <nav class="tabs"><button data-tab="files" class="on">ARQUIVOS</button><button data-tab="apps">APPS</button></nav>
+  <section id="tab-apps" class="hidden">
+    <div class="card">
+      <h2>APPS DO PC</h2>
+      <p class="mute" id="rstatus">Carregando...</p>
+      <div class="grid" id="grid"></div>
+      <p></p>
+      <button class="btn ghost" id="openScreen">VER A TELA DO PC</button>
+    </div>
+    <p class="mute">Toque num app para abrir no PC e usar daqui. Na tela: toque = clique, segurar = botão direito, arrastar = arrastar,
+      dois dedos = rolar. Gire o celular para ver maior.</p>
+  </section>
+  <section id="tab-files">
   <div class="card">
     <h2>ENVIAR PARA O PC</h2>
     <input type="file" id="files" multiple class="hidden">
@@ -53,9 +89,24 @@ textarea{width:100%;min-height:90px;background:#050506;border:1px solid var(--li
     <div id="down"><p class="mute">Nada compartilhado ainda. No PC, use a aba ENVIAR.</p></div>
     <div id="texts"></div>
   </div>
+  </section>
   <p class="mute">Funciona só na sua rede. A conexão é local (HTTP): use em casa, não em Wi-Fi público.</p>
 </div>
 </main>
+<div id="viewer" class="hidden">
+  <div id="vtop">
+    <button class="red" id="vclose">SAIR</button><button id="vwins">JANELAS</button><button id="vfull">TELA INTEIRA</button>
+    <button id="vq">QUALIDADE: NORMAL</button><button id="vkb">TECLADO</button>
+  </div>
+  <div id="stage"><img id="screen" alt=""><div id="vmsg">conectando à tela...</div><div id="wins" class="hidden"></div></div>
+  <div id="typebar" class="hidden"><input id="typein" placeholder="Digite e toque em ENVIAR" autocomplete="off" autocapitalize="off"><button id="typego" class="btn" style="width:auto;padding:10px 16px">ENVIAR</button></div>
+  <div id="keys">
+    <button data-k="Return">ENTER</button><button data-k="BackSpace">⌫</button><button data-k="Escape">ESC</button><button data-k="Tab">TAB</button>
+    <button data-k="Left">←</button><button data-k="Up">↑</button><button data-k="Down">↓</button><button data-k="Right">→</button>
+    <button data-k="ctrl+c">CTRL+C</button><button data-k="ctrl+v">CTRL+V</button><button data-k="ctrl+z">CTRL+Z</button><button data-k="ctrl+a">CTRL+A</button>
+    <button data-k="ctrl+s">CTRL+S</button><button data-k="Delete">DEL</button><button data-k="F5">F5</button>
+  </div>
+</div>
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
@@ -143,5 +194,176 @@ $("#sendText").onclick = async () => {
   setTimeout(() => ($("#sendText").textContent = "ENVIAR TEXTO"), 1500);
 };
 hello();
+</script>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- abas, apps e controle da tela
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const H = () => ({ "X-Uplink-Key": decodeURIComponent(location.hash.slice(1)), "X-Uplink-Device": localStorage.getItem("uplink-device") || "" });
+  const api = async (path, body) => {
+    const r = await fetch(path, body === undefined ? { headers: H() } : { method: "POST", headers: { ...H(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    let d = {}; try { d = await r.json(); } catch (e) {}
+    return { ok: r.ok, status: r.status, d };
+  };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+    $("#tab-files").classList.toggle("hidden", b.dataset.tab !== "files");
+    $("#tab-apps").classList.toggle("hidden", b.dataset.tab !== "apps");
+    if (b.dataset.tab === "apps") loadApps();
+  });
+
+  let loaded = false;
+  async function loadApps() {
+    const st = await api("/api/r/status");
+    if (!st.ok || !st.d.ok) { $("#rstatus").textContent = (st.d && (st.d.why || st.d.erro)) || "Controle remoto indisponível."; return; }
+    $("#rstatus").textContent = st.d.perm === false ? "O PC recusou o controle remoto para este aparelho." : "";
+    if (loaded) return;
+    const r = await api("/api/r/apps");
+    if (!r.ok) { $("#rstatus").textContent = r.d.erro || "Erro"; return; }
+    loaded = true;
+    $("#grid").innerHTML = r.d.apps.map((a) => `<div class="app" data-key="${esc(a.key)}"><img data-icon="${esc(a.key)}" alt=""><span>${esc(a.name.replace(/^Arasaka /, ""))}</span><span class="k">${a.kind === "modulo" ? "MÓDULO" : "APP"}</span></div>`).join("")
+      || '<p class="mute">Nenhum app Arasaka instalado no PC.</p>';
+    document.querySelectorAll("[data-icon]").forEach(async (img) => {
+      const res = await fetch("/api/r/icon/" + encodeURIComponent(img.dataset.icon), { headers: H() });
+      if (res.ok) img.src = URL.createObjectURL(await res.blob()); else img.style.visibility = "hidden";
+    });
+  }
+
+  // pede permissao (o PC pergunta na primeira vez) e abre a transmissao
+  let tok = null, screenWH = [1920, 1080];
+  async function start(windowId) {
+    $("#viewer").classList.remove("hidden");
+    $("#vmsg").textContent = "pedindo permissão ao PC...";
+    $("#vmsg").style.display = "";
+    for (let i = 0; i < 120; i++) {
+      const r = await api("/api/r/start", { window: windowId || null });
+      if (r.ok && r.d.state === "ok") { tok = r.d.t; screenWH = r.d.screen; return openStream(); }
+      if (!r.ok) { $("#vmsg").textContent = (r.d.erro || "recusado").toUpperCase(); return; }
+      $("#vmsg").textContent = "NO PC, PERMITA O CONTROLE REMOTO PARA ESTE APARELHO...";
+      await new Promise((ok) => setTimeout(ok, 1500));
+    }
+  }
+  let quality = 1;
+  const Q = [["BAIXA", 40, 0.6], ["NORMAL", 60, 1], ["ALTA", 75, 1.5]];
+  function openStream() {
+    const w = Math.min(1920, Math.round(Math.max(innerWidth, innerHeight) * (devicePixelRatio || 1) * Q[quality][2]));
+    const img = $("#screen");
+    img.onload = () => ($("#vmsg").style.display = "none");
+    img.onerror = () => { $("#vmsg").style.display = ""; $("#vmsg").textContent = "TRANSMISSÃO ENCERRADA NO PC"; };
+    img.src = `/api/r/stream?t=${encodeURIComponent(tok)}&w=${w}&q=${Q[quality][1]}&_=${Date.now()}`;
+  }
+  async function stop() {
+    $("#screen").src = "";
+    if (tok) await api("/api/r/stop", { t: tok });
+    tok = null;
+    $("#viewer").classList.add("hidden");
+  }
+
+  // comandos (agrupados para nao travar a rede)
+  let queue = [], timer = null;
+  function send(ev, now) {
+    if (!tok) return;
+    queue.push(ev);
+    if (now) return flush();
+    if (!timer) timer = setTimeout(flush, 40);
+  }
+  async function flush() {
+    clearTimeout(timer); timer = null;
+    if (!queue.length) return;
+    const ev = queue; queue = [];
+    const r = await api("/api/r/input", { t: tok, ev });
+    if (!r.ok && r.status === 403) { $("#vmsg").style.display = ""; $("#vmsg").textContent = (r.d.erro || "encerrado").toUpperCase(); }
+  }
+  const norm = (e) => { const r = $("#screen").getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }; };
+
+  // toque: 1 dedo = clique / arrastar / segurar (botao direito); 2 dedos = rolar
+  const pts = new Map();
+  let downAt = null, dragging = false, longTimer = null, longDone = false, lastMove = 0, scrollY = null;
+  const stage = $("#stage");
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("#wins")) return;
+    e.preventDefault();
+    stage.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) { clearTimeout(longTimer); downAt = null; scrollY = [...pts.values()].reduce((a, p) => a + p.y, 0) / 2; return; }
+    downAt = { ...norm(e), cx: e.clientX, cy: e.clientY, b: e.button === 2 ? 3 : 1 };
+    dragging = false; longDone = false;
+    longTimer = setTimeout(() => { if (downAt && !dragging) { longDone = true; send({ t: "click", x: downAt.x, y: downAt.y, b: 3 }, true); if (navigator.vibrate) navigator.vibrate(30); } }, 550);
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2 && scrollY !== null) {
+      const y = [...pts.values()].reduce((a, p) => a + p.y, 0) / 2;
+      const steps = Math.trunc((scrollY - y) / 28);
+      if (steps) { const c = norm(e); send({ t: "scroll", x: c.x, y: c.y, dy: steps }); scrollY -= steps * 28; }
+      return;
+    }
+    if (!downAt || longDone) return;
+    if (!dragging && Math.hypot(e.clientX - downAt.cx, e.clientY - downAt.cy) > 10) {
+      dragging = true; clearTimeout(longTimer);
+      send({ t: "down", x: downAt.x, y: downAt.y, b: downAt.b });
+    }
+    if (dragging && Date.now() - lastMove > 35) { lastMove = Date.now(); const c = norm(e); send({ t: "move", x: c.x, y: c.y }); }
+  });
+  const end = (e) => {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) scrollY = null;
+    clearTimeout(longTimer);
+    if (!downAt) return;
+    const c = norm(e);
+    if (dragging) send({ t: "up", x: c.x, y: c.y, b: downAt.b }, true);
+    else if (!longDone) send({ t: "click", x: downAt.x, y: downAt.y, b: downAt.b }, true);
+    downAt = null; dragging = false;
+  };
+  stage.addEventListener("pointerup", end);
+  stage.addEventListener("pointercancel", end);
+  stage.addEventListener("contextmenu", (e) => e.preventDefault());
+  stage.addEventListener("wheel", (e) => { e.preventDefault(); const c = norm(e); send({ t: "scroll", x: c.x, y: c.y, dy: Math.sign(e.deltaY) }); }, { passive: false });
+
+  // teclado
+  document.querySelectorAll("#keys [data-k]").forEach((b) => b.onclick = () => send({ t: "key", k: b.dataset.k }, true));
+  $("#vkb").onclick = () => { $("#typebar").classList.toggle("hidden"); if (!$("#typebar").classList.contains("hidden")) $("#typein").focus(); };
+  const typeGo = () => { const v = $("#typein").value; if (v) { send({ t: "text", s: v }, true); $("#typein").value = ""; } };
+  $("#typego").onclick = typeGo;
+  $("#typein").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); if ($("#typein").value) typeGo(); else send({ t: "key", k: "Return" }, true); } });
+
+  // barra de cima
+  $("#vclose").onclick = stop;
+  $("#vfull").onclick = async () => { if (tok) await api("/api/r/stop", { t: tok }); start(null); };
+  $("#vq").onclick = () => { quality = (quality + 1) % 3; $("#vq").textContent = "QUALIDADE: " + Q[quality][0]; if (tok) openStream(); };
+  $("#vwins").onclick = async () => {
+    const box = $("#wins");
+    if (!box.classList.contains("hidden")) return box.classList.add("hidden");
+    const r = await api("/api/r/windows");
+    box.innerHTML = '<h2 style="letter-spacing:.25em;font-size:13px;color:#8c8c96">JANELAS ABERTAS NO PC</h2>' +
+      (r.ok ? r.d.windows.map((w) => `<div class="item" data-w="${w.id}"><span class="n">${esc(w.title)}</span><span class="s">${esc(w.cls)}</span></div>`).join("") : esc(r.d.erro || ""));
+    box.classList.remove("hidden");
+  };
+  $("#wins").addEventListener("click", async (e) => {
+    const it = e.target.closest("[data-w]"); if (!it) return;
+    $("#wins").classList.add("hidden");
+    if (tok) await api("/api/r/stop", { t: tok });
+    start(Number(it.dataset.w));
+  });
+  $("#openScreen").onclick = () => start(null);
+  $("#grid").addEventListener("click", async (e) => {
+    const a = e.target.closest("[data-key]"); if (!a || a.classList.contains("busy")) return;
+    a.classList.add("busy");
+    const p = await api("/api/r/start", { window: null });
+    if (p.ok && p.d.state === "ok") await api("/api/r/stop", { t: p.d.t });
+    else if (p.ok && p.d.state === "pendente") { await start(null); await stop(); }
+    $("#rstatus").textContent = "Abrindo no PC...";
+    const r = await api("/api/r/launch", { key: a.dataset.key });
+    a.classList.remove("busy");
+    if (!r.ok || !r.d.window) { $("#rstatus").textContent = (r.d && r.d.erro) || "Não abriu."; return; }
+    $("#rstatus").textContent = "";
+    start(r.d.window.id);
+  });
+})();
 </script>
 </body></html>

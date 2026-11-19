@@ -21,12 +21,16 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libegl1 libxkbcommon0 libfontconfig1 libdbus-1-3 >/dev/null
-          pip install -q "PySide6-Essentials>=6.5" "qrcode>=7"
+          pip install -q "PySide6-Essentials>=6.5" "qrcode>=7" "mss>=9" "Pillow>=10" "python-xlib>=0.33"
           mkdir -p "$RUNNER_TEMP/home"
           QT_QPA_PLATFORM=offscreen HOME="$RUNNER_TEMP/home" ARASAKA_BLACKWALL_DEMO=1 timeout 120 python -m arasaka_uplink --screenshot="$RUNNER_TEMP/tela.png"
           test -s "$RUNNER_TEMP/tela.png"
       - name: Servidor (codigo, aprovacao, envio, download)
         run: timeout 120 python tests/test_server.py
+      - name: Controle remoto numa tela virtual (Xvfb), inclusive mouse e teclado
+        run: |
+          sudo apt-get install -y -qq xvfb >/dev/null
+          UPLINK_TEST_INPUT=1 timeout 180 xvfb-run -a -s "-screen 0 1280x800x24" python tests/test_remote.py
       - uses: actions/upload-artifact@v4
         with:
           name: tela

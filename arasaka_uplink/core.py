@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 APP_ID = "arasaka-uplink"
 APP_NAME = "ARASAKA UPLINK"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 HOME = Path.home()
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / APP_ID
@@ -126,6 +126,17 @@ class Uplink:
         self.port = 0
         self.lock = threading.Lock()
         self.trusted = self._load_trusted()
+        self.on_remote_request = None     # (aparelho) pede para ver/controlar a tela: o app pergunta
+        self.on_stream = None             # alguem comecou/parou de ver a tela: o app mostra/esconde o aviso
+        self.on_paste = None              # texto com acentos: o app poe na area de transferencia e cola
+        self._remote = None
+
+    @property
+    def remote(self):
+        if self._remote is None:
+            from .remote_api import RemoteHub
+            self._remote = RemoteHub(self)
+        return self._remote
 
     # ------------------------------------------------ aparelhos lembrados
     def _load_trusted(self) -> dict[str, str]:
@@ -150,6 +161,8 @@ class Uplink:
 
     def forget(self, dev_id: str):
         self.trusted.pop(dev_id, None)
+        if self._remote:
+            self._remote.forget(dev_id)
         self._save_trusted()
         if dev_id in self.devices:
             self.devices[dev_id].state = "recusado"
@@ -244,6 +257,8 @@ def make_handler(up: Uplink):
                 return self._json(200, {"pc": socket.gethostname(),
                                         "files": [{"id": s.id, "name": s.name, "size": s.path.stat().st_size if s.path.exists() else 0} for s in up.shared],
                                         "texts": up.texts_out})
+            if u.path.startswith("/api/r/") and up.remote.handle(self, "GET", u.path, u.query):
+                return
             m = re.match(r"^/api/file/([0-9a-f]{12})$", u.path)
             if m:
                 if not self._guard():
@@ -288,6 +303,8 @@ def make_handler(up: Uplink):
                 if new and up.on_device:
                     up.on_device(dev)
                 return self._json(200, {"state": dev.state, "pc": socket.gethostname()})
+            if u.path.startswith("/api/r/") and up.remote.handle(self, "POST", u.path, u.query):
+                return
             if u.path == "/api/upload":
                 dev = self._guard()
                 if not dev:

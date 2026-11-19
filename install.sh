@@ -59,7 +59,7 @@ mkdir -p "$DATA"
 [ -x "$DATA/venv/bin/python" ] || python3 -m venv "$DATA/venv" || die "falha ao criar o venv (falta python3-venv?)"
 "$DATA/venv/bin/python" -m pip install -q --upgrade pip >/dev/null 2>&1
 info "baixando PySide6 (~120 MB na primeira vez)..."
-"$DATA/venv/bin/python" -m pip install -q --upgrade "PySide6-Essentials>=6.5" "qrcode>=7" || die "falha ao instalar PySide6 e qrcode"
+"$DATA/venv/bin/python" -m pip install -q --upgrade "PySide6-Essentials>=6.5" "qrcode>=7" "mss>=9" "Pillow>=10" "python-xlib>=0.33" || die "falha ao instalar as bibliotecas do app"
 ok "PySide6 $("$DATA/venv/bin/python" -c 'import PySide6; print(PySide6.__version__)')"
 
 step "Arquivos do app"
