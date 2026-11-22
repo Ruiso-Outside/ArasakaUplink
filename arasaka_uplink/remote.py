@@ -1,5 +1,5 @@
 """
-ARASAKA UPLINK // controle remoto (X11): janelas, captura da tela e mouse/teclado.
+ARASAKA UPLINK // controle remoto (X11; no Windows, win32desk.py): janelas, captura da tela e mouse/teclado.
 
 Usa a propria sessao grafica (X11): mss para capturar, Pillow para virar JPEG e a extensao XTest (python-xlib)
 para mover o mouse, clicar e digitar. No Wayland isso nao funciona (o Wayland exige um portal com permissao),
@@ -9,12 +9,23 @@ from __future__ import annotations
 
 import io
 import os
+import sys
 import threading
 import time
 from dataclasses import dataclass
 
 
+WIN = sys.platform == "win32"
+
+
 def supported() -> tuple[bool, str]:
+    if WIN:   # Windows: mss + Pillow para a imagem, a API do Windows (win32desk) para mouse e teclado
+        try:
+            import mss  # noqa: F401
+            from PIL import Image  # noqa: F401
+        except ImportError as e:
+            return False, f"falta um pacote do controle remoto ({e.name}): reinstale o Uplink"
+        return True, ""
     if os.environ.get("XDG_SESSION_TYPE") == "wayland" and not os.environ.get("DISPLAY"):
         return False, "a sessão é Wayland: entre na sessão Xorg (na tela de login) para usar o controle remoto"
     if not os.environ.get("DISPLAY"):
@@ -216,6 +227,13 @@ class X11:
                 self._fake(X.KeyRelease, shift)
         self.d.sync()
         return rest
+
+
+def Desktop():  # noqa: N802 - fabrica: o controle de janelas, mouse e teclado do sistema
+    if WIN:
+        from .win32desk import Win32
+        return Win32()
+    return X11()
 
 
 class Capturer:

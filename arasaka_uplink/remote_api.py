@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, unquote
 from . import remote as R
 
 HOME = Path.home()
+WIN_OPEN = "@startfile"   # cmd = [WIN_OPEN, atalho.lnk, argumentos...] (Windows)
 FPS = 10
 SESSION_IDLE = 30 * 60
 
@@ -29,7 +30,7 @@ SESSION_IDLE = 30 * 60
 class RemoteHub:
     def __init__(self, up):
         self.up = up
-        self.x = R.X11()
+        self.x = R.Desktop()
         self.cap = R.Capturer()
         self.sessions: dict[str, R.Session] = {}
         self.pending: set[str] = set()
@@ -81,7 +82,45 @@ class RemoteHub:
         return [self.up.devices[i].name for i in ids if i in self.up.devices]
 
     # ------------------------------------------------ apps e modulos
+    def apps_windows(self) -> list[dict]:
+        """Windows: os atalhos dos apps Arasaka no Menu Iniciar (e os modulos, pelo atalho da Central)."""
+        menus = [Path(os.environ.get("APPDATA") or HOME) / "Microsoft/Windows/Start Menu/Programs",
+                 Path(os.environ.get("PROGRAMDATA") or "C:/ProgramData") / "Microsoft/Windows/Start Menu/Programs"]
+        local = Path(os.environ.get("LOCALAPPDATA") or HOME)
+        out, seen, central = [], set(), None
+        for d in menus:
+            for f in sorted(d.glob("*.lnk")) if d.is_dir() else []:
+                name = f.stem
+                if name in seen or not (name.startswith("Arasaka ") or name.startswith("Demonic")) or name == "Arasaka Uplink":
+                    continue
+                seen.add(name)
+                app_id = name.lower().replace(" ", "-")
+                key = "app:" + app_id
+                svg = local / app_id / "app" / app_id.replace("-", "_") / "assets" / f"{app_id}.svg"
+                if svg.is_file():
+                    self.icons[key] = svg
+                app = {"key": key, "name": name, "kind": "app", "cmd": [WIN_OPEN, str(f)], "cls": name, "desc": ""}
+                if name == "Arasaka Central":
+                    central = app
+                out.append(app)
+        mods = Path(os.environ.get("APPDATA") or HOME) / "Arasaka Central" / "modules"
+        if central and mods.is_dir():
+            for mf in sorted(mods.glob("*/module.json")):
+                try:
+                    m = json.loads(mf.read_text(encoding="utf-8-sig"))
+                except Exception:
+                    continue
+                mid = m.get("id", mf.parent.name)
+                png = next(iter(sorted((mf.parent / "icons").glob("*.png"))), None) if (mf.parent / "icons").is_dir() else None
+                if png:
+                    self.icons["mod:" + mid] = png
+                out.append({"key": "mod:" + mid, "name": m.get("name", mid), "kind": "modulo", "cmd": central["cmd"] + [f"--module={mid}"],
+                            "cls": "Arasaka Central", "desc": "Módulo da Arasaka Central"})
+        return out
+
     def apps(self) -> list[dict]:
+        if R.WIN:
+            return self.apps_windows()
         out = []
         share = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))
         for f in sorted((share / "applications").glob("*.desktop")):
@@ -127,17 +166,24 @@ class RemoteHub:
         if p:
             self.icons[key] = p
 
+    def _find(self, cls: str):
+        # Windows: os apps Arasaka rodam no pythonw (o nome do programa nao diferencia): acha pelo titulo da janela
+        return self.x.find(title=cls) if R.WIN else self.x.find(wm_class=cls)
+
     def launch(self, app: dict) -> R.Win | None:
         if app["kind"] == "app":                 # ja aberto: so traz para a frente (nao abre outra copia)
-            w = self.x.find(wm_class=app["cls"])
+            w = self._find(app["cls"])
             if w:
                 self.x.activate(w.id)
                 return w
-        subprocess.Popen(app["cmd"], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=str(HOME))
+        if app["cmd"] and app["cmd"][0] == WIN_OPEN:   # atalho do Windows, com argumentos (modulo da Central)
+            os.startfile(app["cmd"][1], "open", subprocess.list2cmdline(app["cmd"][2:]), str(HOME))  # noqa: S606
+        else:
+            subprocess.Popen(app["cmd"], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=str(HOME))
         end = time.time() + 15
         while time.time() < end:
             time.sleep(0.5)
-            w = self.x.find(wm_class=app["cls"])
+            w = self._find(app["cls"])
             if w:
                 time.sleep(0.6)            # deixa a janela terminar de abrir
                 self.x.activate(w.id)

@@ -2,3 +2,5 @@
 *.svg -text
 *.ttf binary
 *.png binary
+*.ps1 text eol=crlf
+*.bat text eol=crlf

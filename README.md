@@ -118,3 +118,8 @@ Rode **sem sudo**. Para remover: `./uninstall.sh`.
 
 Arasaka é marca da CD PROJEKT RED (projeto de fã, sem fins comerciais). A fonte `cedge1` usa a licença
 FontStruct Non-Commercial.
+
+### Windows 10/11
+
+Pela **Arasaka Central** (Loja → Apps), ou extraia o `ArasakaUplink-vX.Y.Z-windows.zip` e dê dois cliques em **`install.bat`**. O instalador instala o Python 3.12 pelo winget (se ainda não houver), cria os atalhos no Menu Iniciar e na Área de Trabalho e o comando `arasaka-uplink`. Não precisa de administrador. No Windows o instalador baixa o scrcpy oficial (com o adb), conferido pelo SHA-256. O controle remoto usa a API do Windows (mouse, teclado e janelas, com acentos), o botão LIBERAR NO FIREWALL cria a regra no Firewall do Windows só para a sua rede, e antes de mexer no celular o Uplink pede o Windows Hello (PIN ou digital) ou a confirmação de administrador.
+Para remover: `powershell -ExecutionPolicy Bypass -File uninstall.ps1` (os seus dados são mantidos).

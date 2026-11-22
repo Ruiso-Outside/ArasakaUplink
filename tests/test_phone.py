@@ -74,7 +74,10 @@ assert "1.25" in P.mirror_problem(old_log) and "Central" in P.mirror_problem(old
 # espelhar usa o scrcpy oficial baixado, com o mesmo adb do Uplink
 import tempfile, os
 with tempfile.TemporaryDirectory() as td:
-    exe = Path(td) / "scrcpy"; exe.write_text("#!/bin/sh\necho 'scrcpy 5.0.1 <x>'\n"); exe.chmod(0o755)
+    if os.name == "nt":   # Windows: um .cmd faz o papel do scrcpy.exe
+        exe = Path(td) / "scrcpy.cmd"; exe.write_text("@echo scrcpy 5.0.1 ^<x^>\r\n")
+    else:
+        exe = Path(td) / "scrcpy"; exe.write_text("#!/bin/sh\necho 'scrcpy 5.0.1 <x>'\n"); exe.chmod(0o755)
     (Path(td) / "scrcpy-server").write_text("x")
     seen = {}
     class FakePopen:

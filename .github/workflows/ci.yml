@@ -43,3 +43,37 @@ jobs:
             curl -fsSL "https://raw.githubusercontent.com/Ruiso-Outside/ArasakaKit/main/arasaka_kit/$f" -o "$RUNNER_TEMP/$f" || { echo "::warning::não consegui baixar $f do ArasakaKit"; continue; }
             cmp -s "$RUNNER_TEMP/$f" "arasaka_uplink/$f" || echo "::warning::arasaka_uplink/$f está diferente do ArasakaKit: rode ArasakaKit/sync.sh"
           done
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Sintaxe e instalador do Windows
+        shell: pwsh
+        run: |
+          python -m compileall -q arasaka_uplink
+          foreach ($f in 'install.ps1', 'uninstall.ps1') { $t = $null; $e = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$t, [ref]$e); if ($e) { throw "${f}: $e" } }
+      - name: Abre o app sem tela no Windows e tira um print
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          ARASAKA_BLACKWALL_DEMO: '1'
+        run: |
+          pip install -q "PySide6-Essentials>=6.5" "qrcode>=7" "mss>=9" "Pillow>=10" "zeroconf>=0.131"
+          python -m arasaka_uplink --screenshot="$env:RUNNER_TEMP\tela-windows.png"
+          if (-not (Test-Path "$env:RUNNER_TEMP\tela-windows.png")) { throw 'sem print' }
+      - name: test_phone.py no Windows
+        shell: pwsh
+        run: python tests/test_phone.py
+      - name: test_remote.py no Windows
+        shell: pwsh
+        run: python tests/test_remote.py
+      - name: test_server.py no Windows
+        shell: pwsh
+        run: python tests/test_server.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tela-windows
+          path: ${{ runner.temp }}/tela-windows.png

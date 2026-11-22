@@ -126,8 +126,9 @@ class ConnectPage(Page):
         self.fw.setVisible(on)
         if on:
             nets = ", ".join(core.local_networks())
-            self.fw_lbl.setText(f"O firewall do sistema (ufw) está ligado e bloqueia o celular. Libere a porta {self.win.up.port} só para a "
-                                f"sua rede ({nets}). Pede a senha de administrador.")
+            which = "o Firewall do Windows" if sys.platform == "win32" else "o firewall do sistema (ufw)"
+            self.fw_lbl.setText(f"{which[0].upper() + which[1:]} está ligado e bloqueia o celular. Libere a porta {self.win.up.port} só para a "
+                                f"sua rede ({nets}). Pede a confirmação de administrador.")
 
     def firewall_done(self):
         self.win.fw_opened = True
@@ -141,6 +142,20 @@ class ConnectPage(Page):
     def open_firewall(self):
         import shutil
         import subprocess
+        if sys.platform == "win32":   # regra no Firewall do Windows, criada por um PowerShell de administrador (UAC)
+            self.fw_btn.setEnabled(False)
+            import base64
+            enc = base64.b64encode(core.win_firewall_script(self.win.up.port).encode("utf-16-le")).decode()
+            r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                f"try {{ $p = Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -PassThru "
+                                f"-ArgumentList '-NoProfile','-EncodedCommand','{enc}'; exit $p.ExitCode }} catch {{ exit 1223 }}"],
+                               capture_output=True, text=True, creationflags=core.NO_WINDOW)
+            self.fw_btn.setEnabled(True)
+            if r.returncode == 0 and not core.win_firewall_blocks():
+                self.firewall_done()
+                return self.win.toast("Porta liberada no Firewall do Windows para a rede de casa")
+            return self.win.alert("Firewall", "Não foi liberado (confirmação cancelada?). Dá para rodar num PowerShell de administrador:\n\n"
+                                  + core.win_firewall_script(self.win.up.port))
         if not shutil.which("pkexec"):
             return self.win.alert("Firewall", "Rode no terminal:\n\n" + "\n".join("sudo " + " ".join(c) for c in core.firewall_command(self.win.up.port)))
         self.fw_btn.setEnabled(False)

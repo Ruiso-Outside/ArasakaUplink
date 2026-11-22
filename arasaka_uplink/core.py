@@ -14,6 +14,7 @@ import ipaddress
 import json
 import mimetypes
 import os
+import sys
 import re
 import secrets
 import socket
@@ -28,10 +29,26 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 APP_ID = "arasaka-uplink"
 APP_NAME = "ARASAKA UPLINK"
-VERSION = "1.2.4"
+VERSION = "1.3.0"
 
 HOME = Path.home()
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / APP_ID
+
+
+def _config_home() -> Path:
+    """Configuracoes: %APPDATA% no Windows, ~/.config (XDG) no Linux. Com a pasta pessoal trocada (testes), fica nela."""
+    if sys.platform == "win32" and HOME == Path.home():
+        return Path(os.environ.get("APPDATA") or HOME)
+    return Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
+
+
+def _data_home() -> Path:
+    """Dados: %LOCALAPPDATA% no Windows, ~/.local/share (XDG) no Linux."""
+    if sys.platform == "win32" and HOME == Path.home():
+        return Path(os.environ.get("LOCALAPPDATA") or HOME)
+    return Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))
+
+
+CONFIG_DIR = _config_home() / APP_ID
 ASSETS = Path(__file__).resolve().parent / "assets"
 PAGE = Path(__file__).resolve().parent / "web" / "index.html"
 MAX_TEXT = 100_000
@@ -40,7 +57,7 @@ CHUNK = 1024 * 256
 
 def downloads_dir() -> Path:
     try:
-        txt = (Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "user-dirs.dirs").read_text(encoding="utf-8")
+        txt = (_config_home() / "user-dirs.dirs").read_text(encoding="utf-8")
         m = re.search(r'^XDG_DOWNLOAD_DIR="?([^"\n]+)"?', txt, re.M)
         if m:
             return Path(m.group(1).replace("$HOME", str(HOME))) / "Uplink"
@@ -73,7 +90,12 @@ def local_networks() -> list[str]:
     """Redes locais das placas deste PC (ex.: 192.168.1.0/24), para liberar no firewall so a rede de casa."""
     nets = []
     try:
-        out = subprocess.run(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True, timeout=5).stdout
+        if sys.platform == "win32":
+            out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                  "Get-NetIPAddress -AddressFamily IPv4 | ForEach-Object { 'inet ' + $_.IPAddress + '/' + $_.PrefixLength }"],
+                                 capture_output=True, text=True, timeout=15, creationflags=NO_WINDOW).stdout
+        else:
+            out = subprocess.run(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True, timeout=5).stdout
         for m in re.finditer(r"inet (\d+\.\d+\.\d+\.\d+/\d+)", out):
             net = ipaddress.ip_interface(m.group(1)).network
             if net.is_private and str(net) not in nets:
@@ -83,8 +105,34 @@ def local_networks() -> list[str]:
     return nets or ["192.168.0.0/16"]
 
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+FW_RULE = "Arasaka Uplink"
+
+
+def win_firewall_blocks() -> bool:
+    """Windows: o Firewall esta ligado e ainda nao ha a regra do Uplink? (le sem administrador)"""
+    def ps(cmd):
+        return subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd], capture_output=True, text=True,
+                              timeout=20, creationflags=NO_WINDOW).stdout.strip()
+    try:
+        if ps(f"[bool](Get-NetFirewallRule -DisplayName '{FW_RULE}' -ErrorAction SilentlyContinue)") == "True":
+            return False
+        return ps("[bool](Get-NetFirewallProfile | Where-Object { $_.Enabled })") == "True"
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def win_firewall_script(port: int = 7099) -> str:
+    """Comando (rodado como administrador) que libera as portas do Uplink so para a rede local, nas redes privadas."""
+    nets = ",".join(local_networks())
+    return (f"New-NetFirewallRule -DisplayName '{FW_RULE}' -Direction Inbound -Action Allow -Protocol TCP "
+            f"-LocalPort {port}-{port + 19} -RemoteAddress {nets} -Profile Private,Domain | Out-Null")
+
+
 def firewall_active() -> bool:
     """ufw ligado? (da para saber sem senha: o servico e o arquivo de configuracao sao legiveis)"""
+    if sys.platform == "win32":
+        return win_firewall_blocks()
     try:
         enabled = "ENABLED=yes" in Path("/etc/ufw/ufw.conf").read_text()
     except OSError:

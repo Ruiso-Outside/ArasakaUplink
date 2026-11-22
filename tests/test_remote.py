@@ -20,6 +20,12 @@ mod = T / "cfg/Arasaka Central/modules/foto"
 mod.mkdir(parents=True)
 (mod / "module.json").write_text(json.dumps({"id": "foto", "name": "Arasaka Optics"}))
 os.environ.update(HOME=str(T), XDG_CONFIG_HOME=str(T / "cfg"), XDG_DATA_HOME=str(T / "share"))
+if sys.platform == "win32":   # Windows: os apps vem dos atalhos do Menu Iniciar; configuracoes em %APPDATA%
+    menu = T / "cfg/Microsoft/Windows/Start Menu/Programs"
+    menu.mkdir(parents=True)
+    for n in ("Arasaka Teste", "Arasaka Central", "Arasaka Uplink", "Bloco de Notas"):
+        (menu / f"{n}.lnk").write_bytes(b"")
+    os.environ.update(APPDATA=str(T / "cfg"), LOCALAPPDATA=str(T / "share"), PROGRAMDATA=str(T / "none"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from arasaka_uplink import core as C, remote as R  # noqa: E402
 
@@ -57,6 +63,14 @@ if not ok:
 apps = json.loads(req("/api/r/apps")[1].read())["apps"]
 keys = {a["key"] for a in apps}
 assert "app:arasaka-teste" in keys and "mod:foto" in keys and "app:arasaka-uplink" not in keys, keys
+if sys.platform == "win32":
+    assert "app:bloco-de-notas" not in keys, "no Windows so os apps Arasaka"
+    foto = next(a for a in up.remote.apps() if a["key"] == "mod:foto")   # o comando nao vai para o celular: le direto
+    assert foto["cmd"][-1] == "--module=foto" and foto["cmd"][1].endswith("Arasaka Central.lnk"), foto
+    from arasaka_uplink.win32desk import Win32  # noqa: E402
+    w32 = Win32()
+    assert w32._vk("ctrl") == 0x11 and w32._vk("F4") == 0x73 and w32._vk("a") == 0x41
+    assert all(w.w > 0 and w.title for w in w32.windows())
 
 assert req("/api/r/windows")[0] == 403, "sem permissão não lista janelas"
 code, resp = req("/api/r/start", {})

@@ -17,6 +17,7 @@ import secrets
 import shutil
 import string
 import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,12 +32,26 @@ RESCUE = ["DCIM", "Pictures", "Movies", "Music", "Documents", "Download", "Recor
           "Telegram"]
 
 
+WIN = sys.platform == "win32"
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # Windows: o adb e o scrcpy sem janela de console piscando
+
+
 def tools() -> dict[str, str | None]:
-    return {"adb": shutil.which("adb"), "scrcpy": scrcpy_bin()}
+    return {"adb": adb_bin(), "scrcpy": scrcpy_bin()}
 
 
 # scrcpy oficial baixado pelo instalador (o do Ubuntu, 1.25, nao consegue tocar na tela do Android 14)
-BUNDLED_SCRCPY = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share") / "arasaka-uplink" / "scrcpy" / "scrcpy"
+# no Windows, o pacote oficial (scrcpy-win64) traz tambem o adb.exe; o instalador poe em %LOCALAPPDATA%\arasaka-uplink\scrcpy
+BUNDLED_SCRCPY = ((Path(os.environ.get("LOCALAPPDATA") or HOME) / "arasaka-uplink" / "scrcpy" / "scrcpy.exe") if sys.platform == "win32"
+                  else Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share") / "arasaka-uplink" / "scrcpy" / "scrcpy")
+
+
+def adb_bin() -> str | None:
+    """O adb que acompanha o scrcpy oficial (Windows) ou o do sistema."""
+    bundled = BUNDLED_SCRCPY.with_name("adb.exe")
+    if WIN and bundled.is_file():
+        return str(bundled)
+    return shutil.which("adb")
 
 
 def scrcpy_bin() -> str | None:
@@ -50,7 +65,7 @@ def scrcpy_version(path: str | None = None) -> tuple[int, int]:
     if not path:
         return (0, 0)
     try:
-        out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=10).stdout
+        out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=10, creationflags=NO_WINDOW).stdout
     except (OSError, subprocess.SubprocessError):
         return (0, 0)
     m = re.search(r"scrcpy (\d+)\.(\d+)", out)
@@ -62,10 +77,11 @@ OLD_SCRCPY = ("o scrcpy {v} do Ubuntu é antigo demais para o Android 12 ou mais
 
 
 def adb(*args: str, serial: str | None = None, timeout: float = 30, check: bool = False) -> str:
-    if not shutil.which("adb"):
-        raise RuntimeError("o adb não está instalado (sudo apt install adb)")
-    cmd = ["adb"] + (["-s", serial] if serial else []) + list(args)
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    exe = adb_bin()
+    if not exe:
+        raise RuntimeError("o adb não está instalado " + ("(reinstale o Uplink pela Arasaka Central)" if WIN else "(sudo apt install adb)"))
+    cmd = [exe] + (["-s", serial] if serial else []) + list(args)
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=NO_WINDOW)
     if check and r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout).strip().splitlines()[-1] if (r.stderr or r.stdout).strip() else f"adb terminou com {r.returncode}")
     return r.stdout + (r.stderr if not r.stdout else "")
@@ -343,15 +359,15 @@ def mirror(serial: str, title: str, screen_off: bool = False, audio: bool = Fals
     if not audio and scrcpy_version(exe) >= (2, 0):
         cmd.append("--no-audio")
     env = dict(os.environ)
-    if shutil.which("adb"):
-        env["ADB"] = shutil.which("adb")          # o mesmo adb do Uplink (outro adb derrubaria a conexao Wi-Fi)
+    if adb_bin():
+        env["ADB"] = adb_bin()          # o mesmo adb do Uplink (outro adb derrubaria a conexao Wi-Fi)
     server = Path(exe).with_name("scrcpy-server")
     if server.is_file():
         env["SCRCPY_SERVER_PATH"] = str(server)
     log = CONFIG_DIR / "scrcpy.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "w", encoding="utf-8") as f:     # o scrcpy escreve o motivo dos problemas aqui
-        return subprocess.Popen(cmd, start_new_session=True, stdout=f, stderr=subprocess.STDOUT, text=True, env=env)
+        return subprocess.Popen(cmd, start_new_session=True, stdout=f, stderr=subprocess.STDOUT, text=True, env=env, creationflags=NO_WINDOW)
 
 
 # ================================================================ arquivos
@@ -387,7 +403,8 @@ def ls(serial: str, path: str) -> list[Entry]:
 def pull(serial: str, remote: str, local: Path, on_line=None) -> int:
     """Copia do celular para o PC (pasta ou arquivo). Devolve o codigo do adb."""
     local.mkdir(parents=True, exist_ok=True)
-    p = subprocess.Popen(["adb", "-s", serial, "pull", "-a", remote, str(local)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    p = subprocess.Popen([adb_bin() or "adb", "-s", serial, "pull", "-a", remote, str(local)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, creationflags=NO_WINDOW)
     for line in p.stdout:
         if on_line and line.strip():
             on_line(line.strip())
